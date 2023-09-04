@@ -1,0 +1,11 @@
+name: common_col_union_sample
+schema_version: 44
+connection: test
+include_untimed: true
+model_folders:
+  - models
+entities:
+  - name: user
+
+python_requirements:
+  - profiles_rudderstack_common_column_union==1.0.0 # registers common_column_union model type

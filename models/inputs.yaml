@@ -1,0 +1,21 @@
+inputs:
+  - name: cart_create
+    contract:
+      is_optional: false
+      is_event_stream: true
+      with_entity_ids: []
+      with_columns:
+        - name: timestamp
+    app_defaults:
+      table: CARTS_CREATE
+      occurred_at_col: timestamp
+  - name: checkout_started
+    contract:
+      is_optional: false
+      is_event_stream: true
+      with_entity_ids: []
+      with_columns:
+        - name: timestamp
+    app_defaults:
+      table: CHECKOUT_STARTED
+      occurred_at_col: timestamp
