@@ -1,2 +1,0 @@
-Material - Material_common_column_union_5248a121_1524
-Inputs: ['inputs/cart_create', 'inputs/checkout_started']

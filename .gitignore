@@ -1,4 +1,4 @@
-output/*
+output/
 *.egg-info
 build
 __pycache__
