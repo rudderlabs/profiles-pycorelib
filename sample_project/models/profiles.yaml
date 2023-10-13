@@ -1,7 +1,0 @@
-models:
-  - name: common_column_union
-    model_type: common_column_union
-    model_spec:
-      inputs:
-        - inputs/cart_create
-        - inputs/checkout_started
