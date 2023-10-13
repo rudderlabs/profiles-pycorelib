@@ -90,12 +90,10 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
         sql = this.execute_text_template(
             f"""
             {{% macro begin_block() %}}
-                {{% exec %}} {{{{EphemeralInputsSetup(this)}}}} {{% endexec %}}
                 {{% macro selector_sql() %}}
                     {union_sql}
                 {{% endmacro %}}
                 {{% exec %}} {{{{warehouse.CreateReplaceTableAs(this.Name(), selector_sql())}}}} {{% endexec %}}
-                {{% exec %}} {{{{EphemeralInputsCleanup(this)}}}} {{% endexec %}}
             {{% endmacro %}}
             
             {{% exec %}} {{{{warehouse.BeginEndBlock(begin_block())}}}} {{% endexec %}}"""
