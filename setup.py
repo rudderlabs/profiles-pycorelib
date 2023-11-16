@@ -9,6 +9,6 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     install_requires=[
-        "profiles-rudderstack@git+https://github.com/rudderlabs/pywht@wht-grpc-0.1.1#subdirectory=profiles_rudderstack"
+        "profiles-rudderstack==0.9.4"
     ]
 )
