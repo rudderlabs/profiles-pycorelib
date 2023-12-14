@@ -9,6 +9,6 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     install_requires=[
-        "profiles-rudderstack==0.9.4"
+        "profiles-rudderstack==0.10.4"
     ]
 )
