@@ -1,43 +1,54 @@
+from typing import List
+
 from profiles_rudderstack.model import BaseModelType
+from profiles_rudderstack.schema import ContractBuildSpecSchema, EntityKeyBuildSpecSchema, EntityIdsBuildSpecSchema, MaterializationBuildSpecSchema
 from profiles_rudderstack.recipe import PyNativeRecipe
 from profiles_rudderstack.material import WhtMaterial
 from profiles_rudderstack.logger import Logger
-from typing import List
 
-class CommonColumnUnionModel(BaseModelType):
-    TypeName = "common_column_union"
+
+class SampleCommonColUnionModel(BaseModelType):
+    TypeName = "sample_common_col_union" # the name of the model type
+
+    # json schema for the build spec
     BuildSpecSchema = {
         "type": "object",
         "properties": {
-            "inputs": { "type": "array", "items": { "type": "string" } },            
+            "inputs": { "type": "array", "items": { "type": "string" } },
+            # extend your schema from pre-defined schemas
+            **ContractBuildSpecSchema["properties"],
+            **EntityKeyBuildSpecSchema["properties"],
+            **EntityIdsBuildSpecSchema["properties"],
+            **MaterializationBuildSpecSchema["properties"],
         },
-        "required": ["inputs"],
+        "required": ["inputs"] + EntityKeyBuildSpecSchema["required"],
         "additionalProperties": False
     }
 
     def __init__(self, build_spec: dict, schema_version: int, pb_version: str) -> None:
+        # call the base class constructor
+        # it will initialize contract, entity_key, ids and materialization, if present in the build_spec
         super().__init__(build_spec, schema_version, pb_version)
 
+        # override the values from the build_spec
+        # self.entity_key = "user"
+
     def get_material_recipe(self)-> PyNativeRecipe:
-        return CommonColumnUnionRecipe(self.build_spec["inputs"])
+        # return the recipe object
+        return SampleCommonColumnUnionRecipe(self.build_spec["inputs"])
+    
 
-    def validate(self):
-        # Model Validate
-        if self.build_spec.get("inputs") is None or len(self.build_spec["inputs"]) == 0:
-            return False, "inputs are required"
-        
-        return super().validate()
-
-
-class CommonColumnUnionRecipe(PyNativeRecipe):
+class SampleCommonColumnUnionRecipe(PyNativeRecipe):
     def __init__(self, inputs: List[str]) -> None:
         self.inputs = inputs
-        self.logger = Logger("common_column_union_recipe")
-        self.sql = ""
+        self.logger = Logger("sample_recipe") # create a logger for debug/error logging
+        self.sql = "" # the sql code to be executed
 
+    # describe the compile output of the recipe - the sql code and the extension of the file
     def describe(self, this: WhtMaterial):
         return self.sql, ".sql"
-
+    
+    # prepare the material for execution - de_ref the inputs and create the sql code
     def prepare(self, this: WhtMaterial):
         is_null_ctx = this.wht_ctx.is_null_context()
         if is_null_ctx:
@@ -53,7 +64,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
                 continue # disabled
 
             inputs.append(in_model)
-            columns = in_material.get_columns()
+            columns = in_material.get_columns() # get the columns of the material
             for col in columns:
                 key = (col["name"], col["type"])
                 if key in common_columns_count:
@@ -63,7 +74,6 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
         
         common_columns = [name for (name, _), count in common_columns_count.items() if count == len(inputs)]
         union_sql = ""
-        
         if len(common_columns) > 0:
             select_columns = ', '.join([f"""{column}{{% if warehouse.DatabaseType() == "redshift" || warehouse.DatabaseType() == "snowflake" %}}::{{{{warehouse.DataType("timestamp")}}}}{{% endif %}}""" if column == "timestamp" else f'{column}' for column in common_columns])
             union_queries = []
@@ -85,8 +95,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
                 )
                
             union_sql = " UNION ALL ".join(union_queries)
-        
-        
+
         sql = this.execute_text_template(
             f"""
             {{% macro begin_block() %}}
@@ -98,10 +107,13 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
             
             {{% exec %}} {{{{warehouse.BeginEndBlock(begin_block())}}}} {{% endexec %}}"""
         )
-        self.sql = sql            
+        self.sql = sql
 
+    # execute the material
     def execute(self, this: WhtMaterial):
         if self.sql == "":
-            self.logger.error("error executing common_column_union_recipe, sql is empty")
+            model_name = this.model.name()
+            self.logger.error(f"error executing {model_name} model, compiled sql is empty")
         
+        # execute the sql code
         this.wht_ctx.client.query_sql_without_result(self.sql)
