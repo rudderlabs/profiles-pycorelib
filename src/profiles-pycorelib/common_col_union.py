@@ -42,13 +42,13 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
         is_null_ctx = this.wht_ctx.is_null_context()
         if is_null_ctx:
             for in_model in self.inputs:
-                this.de_ref(in_model, edge_type="optional")
+                this.de_ref_optional(in_model)
             return
         
         inputs = [] # enabled inputs
         common_columns_count = {}
         for in_model in self.inputs:
-            in_material = this.de_ref(in_model, edge_type="optional")
+            in_material = this.de_ref_optional(in_model)
             if in_material is None:
                 continue # disabled
 
