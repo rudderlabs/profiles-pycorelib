@@ -9,6 +9,13 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     install_requires=[
-        "profiles-rudderstack==0.10.5"
+        "profiles-rudderstack==0.10.5",
+        "langchain",
+        "pandas",
+        "openai",
+        "langchain-google-genai",
+        "boto3",
+        "awscli",
+        "botocore"
     ]
 )
