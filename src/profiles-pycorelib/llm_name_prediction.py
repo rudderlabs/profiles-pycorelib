@@ -10,20 +10,11 @@ import pandas as pd
 import json 
 import hashlib
 from langchain.chains import ConversationChain
-from langchain.llms import OpenAI, Bedrock, LlamaCpp
+from langchain.llms import Bedrock
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts.prompt import PromptTemplate
 from langchain.memory import ConversationBufferMemory
-from langchain.callbacks.base import BaseCallbackHandler
-from langchain.callbacks.manager import CallbackManager
 from langchain_google_genai import GoogleGenerativeAI
-
-from langchain.callbacks.base import BaseCallbackHandler
-from langchain.callbacks.manager import CallbackManager
-
-class MyCustomHandler(BaseCallbackHandler):
-    def on_llm_new_token(self, token: str, **kwargs) -> None:
-        pass
 
 
 class LLMNamePredictionModel(BaseModelType):
@@ -33,34 +24,27 @@ class LLMNamePredictionModel(BaseModelType):
         "properties": {
             "entity_key": {"type": "string"},
             "inputs": {"type": "array", "items": { "type": "string"}},
+            "target_field": {"type": "string"},
             "prompt": {"type": "string"},
             "endpoint": {"type": "string"},
             "model": {"type": "string"}
         },
-        "required": ["inputs","prompt","endpoint","model"],
+        "required": ["inputs","target_field","prompt","endpoint","model"],
         "additionalProperties": False
     }
 
     def __init__(self, build_spec: dict, schema_version: int, pb_version: str) -> None:
         super().__init__(build_spec, schema_version, pb_version)
 
-    #  Specify the output contract for the model (optional)
-    # def get_contract(self) -> Contract:
-    #     return build_contract('{ "is_event_stream": false, "with_columns":[{"name":"num"}] }')
-    
-    #  Specify the entity key for the model (optional)
-    # def get_entity_key(self):
-    #     return self.build_spec.get("entity_key") # getting it from model spec
-    #     or
-    #     return "entity_key"
-    
     def get_material_recipe(self)-> PyNativeRecipe:
-        return LLMNamePredictionRecipe(self.build_spec.get("inputs"),self.build_spec.get("prompt"),self.build_spec.get("endpoint"),self.build_spec.get("model"))
+        return LLMNamePredictionRecipe(self.build_spec.get("inputs"),self.build_spec.get("target_field"),self.build_spec.get("prompt"),self.build_spec.get("endpoint"),self.build_spec.get("model"))
 
     def validate(self):
         # Model Validate
         if self.build_spec.get("inputs") is None or len(self.build_spec["inputs"]) == 0:
             return False, "Property input is required"
+        if self.build_spec.get("target_field") is None or len(self.build_spec["target_field"]) == 0:
+            return False, "Property target_field is required"
         if self.build_spec.get("prompt") is None or len(self.build_spec["prompt"]) == 0:
             return False, "Property prompt is required"
         if self.build_spec.get("endpoint") is None or len(self.build_spec["endpoint"]) == 0:
@@ -72,8 +56,9 @@ class LLMNamePredictionModel(BaseModelType):
 
 
 class LLMNamePredictionRecipe(PyNativeRecipe):
-    def __init__(self, inputs: List[str], prompt: str, endpoint: str, model: str) -> None:
+    def __init__(self, inputs: List[str], target_field: str, prompt: str, endpoint: str, model: str) -> None:
         self.inputs = inputs
+        self.target_field = target_field
         self.prompt = prompt
         self.endpoint = endpoint
         self.model = model
@@ -81,33 +66,28 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
 
     def describe(self, this: WhtMaterial):
         material_name = this.name()
-        return f"""Material - {material_name}\nInputs: {self.inputs}\nPrompt: {self.prompt}\nEndpoint: {self.endpoint}\nModel: {self.model}""", ".txt"
+        return f"""Material - {material_name}\nInputs: {self.inputs}\nTarget Field: {self.target_field}\nPrompt: {self.prompt}\nEndpoint: {self.endpoint}\nModel: {self.model}""", ".txt"
 
+    
     def prepare(self, this: WhtMaterial):
         for in_model in self.inputs:
-            contract = build_contract('{ "is_event_stream": true, "with_columns":[{"name":"user_main_id"},{"name":"first_name"}] }')
-            this.de_ref(in_model, contract)
+            this.de_ref(in_model)
         
         
     def execute(self, this: WhtMaterial):
-        self.logger.info("Executing LLMNamePredictionRecipe:New")
 
         id_response_list = []
         hash_response_list = []
 
-        tables : List[pd.DataFrame] = []
         in_model = self.inputs[0]
         input_material = this.de_ref(in_model)
-        # df = input_material.get_table_data()
-        # tables.append(df)
-        
+
         # read data in batches, only supported in case of snowflake currently
-        dfIter = input_material.get_table_data_batches()
+        dfIter = input_material.get_table_data_batches(["user_main_id",self.target_field])
         for batch in dfIter:
             batch = batch.dropna() #drop rows with null values, which can only be for null first name list
-            #self.logger.info("Batch: {0}".format(batch))
             for index, row in batch.iterrows():
-                first_name_list = row[2].replace("[","").replace("]","").replace("\n","").replace(" ","")
+                first_name_list = row[self.target_field].replace("[","").replace("]","").replace("\n","").replace(" ","")
                 if len(first_name_list)>0 and ("," in first_name_list): #consider only non-blank values
 
                     llm = Bedrock(region_name="us-east-1", model_id="anthropic.claude-v2") # default LLM
@@ -125,9 +105,6 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
                             llm = GoogleGenerativeAI(model=self.model.lower())
 
                     chain = ConversationChain(llm = llm) # chain init
-
-                    # query construction
-
 
                     # Prompt construction
 
@@ -162,11 +139,9 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
                         cache_retrieval_query = "select response from llm_response_cache where hash = '" + str(prompt_hash) + "'"
                         cached_response_df = this.wht_ctx.client.query_sql_with_result(cache_retrieval_query)
                         result = str(cached_response_df.iloc[:,0][0])
-                        self.logger.info("Result from cache: " + result)
                     except Exception as e: # unable to retrieve data (table/row does not exist or other)
                         result = conversation.predict(input = complete_prompt)
                         result = result.replace(".","").split()[-1]
-                        self.logger.info("Result from LLM: " + result)
 
                     #self.logger.info(row[0] + " : " + first_name_list + " : " + result)
 
@@ -180,32 +155,12 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
                     hash_response["response"] = result
                     hash_response_list.append(hash_response) 
 
-        # Get model's entity, entity will be none if no entity_key is provided
-        """
-        entity = input_material.entity()
-        if entity is not None:
-            name = entity.get("Name")
-            id_types = entity.get("IdTypes")
-            main_id_type = entity.get("MainIdType")
-            id_column_name = entity.get("IdColumnName")
-            self.logger.info(json.dumps(entity))
-
-        """
-        # If you want to get only the columns that are required, you can use the following code
-        # df = input_material.get_table_data(select_columns=["user_main_id","first_name"])
-
-        # you can also query with result using
-        # df = this.wht_ctx.client.query_sql_with_result("select user_main_id as user_main_id, first_name as first_name from {0}".format(input_material.name()))
-        # self.logger.info(str(df.columns))
-        # Get output folder path
-        # folder = this.get_output_folder()
         id_response_df = pd.DataFrame(id_response_list)
         hash_response_df = pd.DataFrame(hash_response_list)
 
-        this.wht_ctx.client.write_df_to_table(id_response_df, "user_clean_name")
+        this.write_output(id_response_df)
 
         this.wht_ctx.client.write_df_to_table(hash_response_df, "llm_response_cache") 
 
-        self.logger.info("Finished executing LLMNamePredictionRecipe:New")
 
         
