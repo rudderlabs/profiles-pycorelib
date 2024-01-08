@@ -41,17 +41,6 @@ class LLMNamePredictionModel(BaseModelType):
 
     def validate(self):
         # Model Validate
-        if self.build_spec.get("inputs") is None or len(self.build_spec["inputs"]) == 0:
-            return False, "Property input is required"
-        if self.build_spec.get("target_field") is None or len(self.build_spec["target_field"]) == 0:
-            return False, "Property target_field is required"
-        if self.build_spec.get("prompt") is None or len(self.build_spec["prompt"]) == 0:
-            return False, "Property prompt is required"
-        if self.build_spec.get("endpoint") is None or len(self.build_spec["endpoint"]) == 0:
-            return False, "Property endpoint is required"
-        if self.build_spec.get("model") is None or len(self.build_spec["model"]) == 0:
-            return False, "Property model is required"
-
         return super().validate()
 
 
@@ -75,6 +64,8 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
         
         
     def execute(self, this: WhtMaterial):
+
+        cache_table_name = this.model.name() + "_llm_response_cache"
 
         id_response_list = []
         hash_response_list = []
@@ -136,7 +127,7 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
 
                     # check cache before invoking llm
                     try:
-                        cache_retrieval_query = "select response from llm_response_cache where hash = '" + str(prompt_hash) + "'"
+                        cache_retrieval_query = "select response from " + cache_table_name + " where hash = '" + str(prompt_hash) + "'"
                         cached_response_df = this.wht_ctx.client.query_sql_with_result(cache_retrieval_query)
                         result = str(cached_response_df.iloc[:,0][0])
                     except Exception as e: # unable to retrieve data (table/row does not exist or other)
@@ -160,7 +151,7 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
 
         this.write_output(id_response_df)
 
-        this.wht_ctx.client.write_df_to_table(hash_response_df, "llm_response_cache") 
+        this.wht_ctx.client.write_df_to_table(hash_response_df, cache_table_name) 
 
 
         
