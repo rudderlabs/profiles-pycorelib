@@ -17,19 +17,20 @@ from langchain.memory import ConversationBufferMemory
 from langchain_google_genai import GoogleGenerativeAI
 
 
-class LLMNamePredictionModel(BaseModelType):
-    TypeName = "llm_name_prediction"
+class LLMPromptResponseModel(BaseModelType):
+    TypeName = "llm_prompt_response"
     BuildSpecSchema = {
         "type": "object",
         "properties": {
             "entity_key": {"type": "string"},
             "inputs": {"type": "array", "items": { "type": "string"}},
             "target_field": {"type": "string"},
+            "output_field": {"type": "string"},
             "prompt": {"type": "string"},
             "endpoint": {"type": "string"},
             "model": {"type": "string"}
         },
-        "required": ["inputs","target_field","prompt","endpoint","model"],
+        "required": ["inputs","target_field","output_field","prompt","endpoint","model"],
         "additionalProperties": False
     }
 
@@ -37,25 +38,26 @@ class LLMNamePredictionModel(BaseModelType):
         super().__init__(build_spec, schema_version, pb_version)
 
     def get_material_recipe(self)-> PyNativeRecipe:
-        return LLMNamePredictionRecipe(self.build_spec.get("inputs"),self.build_spec.get("target_field"),self.build_spec.get("prompt"),self.build_spec.get("endpoint"),self.build_spec.get("model"))
+        return LLMPromptResponseRecipe(self.build_spec.get("inputs"),self.build_spec.get("target_field"),self.build_spec.get("output_field"),self.build_spec.get("prompt"),self.build_spec.get("endpoint"),self.build_spec.get("model"))
 
     def validate(self):
         # Model Validate
         return super().validate()
 
 
-class LLMNamePredictionRecipe(PyNativeRecipe):
-    def __init__(self, inputs: List[str], target_field: str, prompt: str, endpoint: str, model: str) -> None:
+class LLMPromptResponseRecipe(PyNativeRecipe):
+    def __init__(self, inputs: List[str], target_field: str, output_field: str, prompt: str, endpoint: str, model: str) -> None:
         self.inputs = inputs
         self.target_field = target_field
+        self.output_field = output_field
         self.prompt = prompt
         self.endpoint = endpoint
         self.model = model
-        self.logger = Logger("LLMNamePredictionRecipe")
+        self.logger = Logger("LLMPromptResponseRecipe")
 
     def describe(self, this: WhtMaterial):
         material_name = this.name()
-        return f"""Material - {material_name}\nInputs: {self.inputs}\nTarget Field: {self.target_field}\nPrompt: {self.prompt}\nEndpoint: {self.endpoint}\nModel: {self.model}""", ".txt"
+        return f"""Material - {material_name}\nInputs: {self.inputs}\nTarget Field: {self.target_field}\nOutput Field: {self.output_field}\nPrompt: {self.prompt}\nEndpoint: {self.endpoint}\nModel: {self.model}""", ".txt"
 
     
     def prepare(self, this: WhtMaterial):
@@ -138,7 +140,7 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
 
                     id_response = {}
                     id_response["user_main_id"] = row[0]
-                    id_response["cleaned_first_name"] = result
+                    id_response[self.output_field] = result
                     id_response_list.append(id_response)
 
                     hash_response = {}
@@ -151,7 +153,7 @@ class LLMNamePredictionRecipe(PyNativeRecipe):
 
         this.write_output(id_response_df)
 
-        this.wht_ctx.client.write_df_to_table(hash_response_df, cache_table_name) 
+        this.wht_ctx.client.write_df_to_table(hash_response_df, cache_table_name)
 
 
         
