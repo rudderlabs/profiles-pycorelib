@@ -80,8 +80,8 @@ class LLMPromptResponseRecipe(PyNativeRecipe):
         for batch in dfIter:
             batch = batch.dropna() #drop rows with null values, which can only be for null first name list
             for index, row in batch.iterrows():
-                first_name_list = row[self.target_field].replace("[","").replace("]","").replace("\n","").replace(" ","")
-                if len(first_name_list)>0 and ("," in first_name_list): #consider only non-blank values
+                values_list = row[self.target_field].replace("[","").replace("]","").replace("\n","").replace(" ","")
+                if len(values_list)>0 and ("," in values_list): #consider only non-blank values
 
                     llm = Bedrock(region_name="us-east-1", model_id="anthropic.claude-v2") # default LLM
 
@@ -92,7 +92,7 @@ class LLMPromptResponseRecipe(PyNativeRecipe):
                             llm = Bedrock(region_name="us-east-1", model_id=self.model.lower()) # LLM init
 
                         case "openai":
-                            llm = ChatOpenAI(temperature=0.2,model_name=self.model.lower())
+                            llm = ChatOpenAI(temperature=0,model_name=self.model.lower())
 
                         case "google":
                             llm = GoogleGenerativeAI(model=self.model.lower())
@@ -121,7 +121,7 @@ class LLMPromptResponseRecipe(PyNativeRecipe):
                     #delay to avoid rate limit
                     time.sleep(5)
 
-                    complete_prompt = self.prompt + ": " + first_name_list
+                    complete_prompt = self.prompt + ": " + values_list
 
                     result = ""
 
@@ -136,7 +136,7 @@ class LLMPromptResponseRecipe(PyNativeRecipe):
                         result = conversation.predict(input = complete_prompt)
                         result = result.replace(".","").split()[-1]
 
-                    #self.logger.info(row[0] + " : " + first_name_list + " : " + result)
+                    #self.logger.info(row[0] + " : " + values_list + " : " + result)
 
                     id_response = {}
                     id_response["user_main_id"] = row[0]

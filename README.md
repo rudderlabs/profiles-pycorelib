@@ -5,14 +5,14 @@ A Python Native package that registers the core python models
 ## Models
 
 - Common Col Union
-- Generic LLM
+- LLM-based Prediction For Most Likely Value From A List Of Probables 
     
-### Name Prediction Using Generic LLM
-* Uses Generic LLM model for predicting most likely first name from a set of comma-separated first name values
+### Name Prediction Using LLM
+* Uses LLM for predicting most likely first name from a set of comma-separated first name values
 * Sample Build Spec
     ```
     models:
-  - name: llm_prompt_response_first_name # remember to change model name while using generic LLM for different field predictions
+  - name: llm_prompt_response_first_name # remember to change model name when using for different field predictions
     model_type: llm_prompt_response
     model_spec:
       inputs:
