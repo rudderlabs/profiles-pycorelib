@@ -17,6 +17,8 @@ from langchain.memory import ConversationBufferMemory
 from langchain_google_genai import GoogleGenerativeAI
 
 
+
+
 class LLMPromptResponseModel(BaseModelType):
     TypeName = "llm_prompt_response"
     BuildSpecSchema = {
@@ -77,6 +79,9 @@ class LLMPromptResponseRecipe(PyNativeRecipe):
 
         # read data in batches, only supported in case of snowflake currently
         dfIter = input_material.get_table_data_batches(["user_main_id",self.target_field])
+
+        api_call_count = 0 # to track no. of API calls made
+
         for batch in dfIter:
             batch = batch.dropna() #drop rows with null values, which can only be for null first name list
             for index, row in batch.iterrows():
@@ -84,18 +89,22 @@ class LLMPromptResponseRecipe(PyNativeRecipe):
                 if len(values_list)>0 and ("," in values_list): #consider only non-blank values
 
                     llm = Bedrock(region_name="us-east-1", model_id="anthropic.claude-v2") # default LLM
+                    api_call_limit = 1533 # default for Bedrock-Claude
 
                     # init LLM based on endpoint and model
 
                     match self.endpoint.lower():
                         case "bedrock":
                             llm = Bedrock(region_name="us-east-1", model_id=self.model.lower()) # LLM init
+                            api_call_limit = 1533
 
                         case "openai":
                             llm = ChatOpenAI(temperature=0,model_name=self.model.lower())
+                            api_call_limit = 125
 
                         case "google":
                             llm = GoogleGenerativeAI(model=self.model.lower())
+                            api_call_limit = 10000
 
                     chain = ConversationChain(llm = llm) # chain init
 
@@ -126,17 +135,19 @@ class LLMPromptResponseRecipe(PyNativeRecipe):
                     result = ""
 
                     prompt_hash = hashlib.sha1(complete_prompt.encode("utf-8")).hexdigest()
-
                     # check cache before invoking llm
                     try:
                         cache_retrieval_query = "select response from " + cache_table_name + " where hash = '" + str(prompt_hash) + "'"
                         cached_response_df = this.wht_ctx.client.query_sql_with_result(cache_retrieval_query)
                         result = str(cached_response_df.iloc[:,0][0])
                     except Exception as e: # unable to retrieve data (table/row does not exist or other)
-                        result = conversation.predict(input = complete_prompt)
-                        result = result.replace(".","").split()[-1]
+                        if api_call_count < api_call_limit:
+                            result = conversation.predict(input = complete_prompt)
+                            result = result.replace(".","").split()[-1]
+                            api_call_count = api_call_count + 1
+                        else:
+                            self.logger.info("Internal rate limit reached for " + self.endpoint.lower() + ":" + self.model.lower())
 
-                    #self.logger.info(row[0] + " : " + values_list + " : " + result)
 
                     id_response = {}
                     id_response["user_main_id"] = row[0]
