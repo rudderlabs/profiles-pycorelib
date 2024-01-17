@@ -39,16 +39,16 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
         return self.sql, ".sql"
 
     def prepare(self, this: WhtMaterial):
-        is_null_ctx = this.wht_ctx.is_null_context()
+        is_null_ctx = this.wht_ctx.is_null_ctx
         if is_null_ctx:
             for in_model in self.inputs:
-                this.de_ref_optional(in_model)
+                this.de_ref(in_model, edge_type="optional")
             return
         
         inputs = [] # enabled inputs
         common_columns_count = {}
         for in_model in self.inputs:
-            in_material = this.de_ref_optional(in_model)
+            in_material = this.de_ref(in_model, edge_type="optional")
             if in_material is None:
                 continue # disabled
 
