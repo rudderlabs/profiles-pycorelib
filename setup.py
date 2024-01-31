@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='profiles-pycorelib',
-    version='0.3.0',
+    version='0.2.1',
     author='Shubham Mehra',
     author_email='shubhammehra@ruddersatck.com',
     description='A Python Native package that registers the core python models',
