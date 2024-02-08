@@ -9,8 +9,8 @@ A Python Native package that registers the core python models
 ## This is how a GraphModel can be defined:
 
 ```yaml
-- name: test_graph
-  model_type: graph
+- name: test_pyplot
+  model_type: pyplot
   model_spec:
     num_of_graphs: 2
     fig_height:
