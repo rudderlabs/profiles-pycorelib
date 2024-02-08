@@ -140,4 +140,6 @@ class GraphRecipe(PyNativeRecipe):
             df1[self.col_x[count]] = (df1[self.col_x[count]].astype(float) /1000).round().astype(int)
             df2[self.col_y[count]]=(df2[self.col_y[count]].astype(float) / 3600).round(4)
 
+            count=count+1
+
             plotGraph(df1[self.col_x[count]], df2[self.col_y[count]], self.fig_height[count],self.fig_width[count],self.label_x[count], self.label_y[count],output_folder, self.title[count], self.img_name[count] )
