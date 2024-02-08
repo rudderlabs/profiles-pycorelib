@@ -46,6 +46,6 @@ A Python Native package that registers the core python models
       - total_ids_vs_credits_spent.png
       - total_users_vs_credits_spent.png
     materialization:
-      output_type: pyplot
+      output_type: image
       run_type: discrete
 ```

@@ -23,8 +23,8 @@ def plotGraph(df_x, df_y,h,w,label_x, label_y, output_folder, title, img_name):
 
 
 
-class GraphModel(BaseModelType):
-    TypeName = "graph"
+class PyPlotModel(BaseModelType):
+    TypeName = "pyplot"
     BuildSpecSchema = {
         "type": "object",
         "properties": {
@@ -51,7 +51,7 @@ class GraphModel(BaseModelType):
         print(build_spec)
 
     def get_material_recipe(self) -> PyNativeRecipe:
-        return GraphRecipe(self.build_spec["num_of_graphs"],self.build_spec["fig_height"],
+        return PyPlotRecipe(self.build_spec["num_of_graphs"],self.build_spec["fig_height"],
             self.build_spec["fig_width"],
               self.build_spec["label_x"],
             self.build_spec["label_y"],
@@ -66,7 +66,7 @@ class GraphModel(BaseModelType):
     def validate(self):
         return self.schema_version >= 51, "schema version should >= 51"
 
-class GraphRecipe(PyNativeRecipe):
+class PyPlotRecipe(PyNativeRecipe):
     def __init__(self, num_of_graphs: int, fig_height: List[int], fig_width: List[int], label_x: List[str], label_y: List[str], title: List[str], output_folder: List[str],col_x: List[str], col_y: List[str], tables: List[List[str]], img_name: List[str]) -> None:
         self.logger = Logger("graph_recipe")
         self.sql = ""
@@ -107,7 +107,7 @@ class GraphRecipe(PyNativeRecipe):
  
 
     def execute(self, this: WhtMaterial):
-        self.logger.info("Executing GraphModel")
+        self.logger.info("Executing PyPlotModel")
         count=0
         for table in self.tables:
             output_path=""
