@@ -33,9 +33,9 @@ A Python Native package that registers the core python models
       - reports
     col_x:
       - total_records
-      - run_time_in_sec
-    col_y:
       - post_stitched_ids
+    col_y:
+      - run_time_in_sec
       - run_time_in_sec
     tables:
       - - models/input_table_size
