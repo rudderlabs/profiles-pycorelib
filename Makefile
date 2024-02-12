@@ -23,6 +23,7 @@ check_git:
 	fi
 	@echo "Are you sure you want to make release version $(VERS)? The command will update setup.py and commit and push new git tag. [y/N] " && read ans && [ $${ans:-N} = y ]
 
+# This is required for release process. make release updates the version and creates the tag for release
 release: check_git update_version
 	git commit -am "$(VERS) release"
 	git tag -a $(VERS) -m "$(VERS) release"
