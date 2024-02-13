@@ -1,9 +1,5 @@
 from setuptools import setup, find_packages
-
-# WARNING: auto-updated by Makefile release target -- run 'make release' to update
-version = "0.11.0rc1"
-git_commit = ""  # the commit JUST BEFORE the release
-version_date = ""  # UTC
+from version import version
 
 
 def limit_major_minor_version(version: str) -> str:
