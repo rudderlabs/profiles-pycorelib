@@ -9,43 +9,23 @@ A Python Native package that registers the core python models
 ## This is how a GraphModel can be defined:
 
 ```yaml
-- name: test_pyplot
+- name: total_ids_vs_credits_spent
   model_type: pyplot
   model_spec:
-    num_of_graphs: 2
-    fig_height:
-      - 8
-      - 8
-    fig_width:
-      - 6
-      - 6
-    label_x:
-      - Total IDs (in thousands)
-      - Total Users (in thousands)
-    label_y:
-      - Credits Spent
-      - Credits Spent
-    title:
-      - Total IDs vs. Credits Spent
-      - Total Users vs. Credits Spent
-    output_folder:
-      - reports
-      - reports
-    col_x:
-      - total_records
-      - post_stitched_ids
-    col_y:
-      - run_time_in_sec
-      - run_time_in_sec
-    tables:
-      - - models/input_table_size
-        - models/id_stitcher_runtime
-      - - models/input_table_size
-        - models/feature_table_runtime
-    img_name:
-      - total_ids_vs_credits_spent.png
-      - total_users_vs_credits_spent.png
     materialization:
       output_type: image
       run_type: discrete
+    title: Total IDs vs. Credits Spent
+    size: 8x8 # Optional with Defaults
+    grid: true # Optional with Defaults
+    x_axis:
+      label: Total IDs (in thousands)
+      column: run_time_in_sec
+      input: models/id_stitcher_runtime
+      transformation: (x * 0.2 +5)
+    y_axis:
+      label: Credits Spent
+      column: run_time_in_sec
+      input: models/id_stitcher_runtime
+      transformation: (x * 0.2 +5)
 ```

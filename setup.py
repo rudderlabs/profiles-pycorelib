@@ -9,6 +9,6 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     install_requires=[
-        "profiles-rudderstack>=0.10.5, <=0.10.7, !=0.10.6",'pandas','matplotlib'
+        "profiles-rudderstack>=0.10.5, <=0.10.7, !=0.10.6",'pandas>=1.4.3','matplotlib>=3.7.1', 'cexprtk'
     ]
 )
