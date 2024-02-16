@@ -6,7 +6,7 @@ A Python Native package that registers the core python models
 
 - Common Col Union
 
-## This is how a GraphModel can be defined:
+## This is how a PyPlotModel can be defined:
 
 ```yaml
 - name: total_ids_vs_credits_spent
@@ -20,12 +20,12 @@ A Python Native package that registers the core python models
     grid: true # Optional with Defaults
     x_axis:
       label: Total IDs (in thousands)
-      column: run_time_in_sec
+      column: total_ids
       input: models/id_stitcher_runtime
-      transformation: (x * 0.2 +5)
+      transformation: x / 1000
     y_axis:
       label: Credits Spent
       column: run_time_in_sec
       input: models/id_stitcher_runtime
-      transformation: (x * 0.2 +5)
+      transformation: y / 3600
 ```

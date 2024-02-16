@@ -93,7 +93,6 @@ class PyPlotRecipe(PyNativeRecipe):
         print(y_axis)
 
     def describe(self, this: WhtMaterial):
-        print("helllloooo",this.name())
         description=this.name()+'.png'+" is created"
         return description, ".txt"
 
@@ -127,9 +126,19 @@ class PyPlotRecipe(PyNativeRecipe):
 
         df_x=tablesList[0]
         df_y=tablesList[1]
+
+        if df_x[self.x_axis.get("transformation")]:
+            for i in range(len(df_x[self.x_axis.get("column")])):
+                df_x.at[i, self.x_axis.get("column")] = cexprtk.evaluate_expression(self.x_axis.get("transformation"), {"x": df_x.at[i, self.x_axis.get("column")]})
+
+
+        if df_y[self.y_axis.get("transformation")]:
+            for i in range(len(df_y[self.y_axis.get("column")])):
+                df_y.at[i, self.y_axis.get("column")] = cexprtk.evaluate_expression(self.y_axis.get("transformation"), {"y": df_y.at[i, self.y_axis.get("column")]})
       
         os.makedirs(output_folder, exist_ok=True)
 
         height, width = map(int, self.size.split('x'))
         file_name=this.name()
+
         plotGraph(df_x[self.x_axis.get("column")], df_y[self.y_axis.get("column")], height,width ,self.x_axis.get("label"), self.y_axis.get("label"),output_folder, self.title, file_name,self.grid )
