@@ -29,8 +29,8 @@ check_git:
 
 # This is required for release process. make release updates the version and creates the tag for release
 release: check_git update_version
-	git commit -am "$(VERS) release"
-	git tag -a $(VERS) -m "$(VERS) release"
+	git commit -am "v$(VERS) release"
+	git tag -a v$(VERS) -m "v$(VERS) release"
 	git push
 	git push origin --tags
 
