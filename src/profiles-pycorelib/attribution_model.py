@@ -211,7 +211,6 @@ class AttributionModelRecipe(PyNativeRecipe):
         conversion_var = self.config['conversion_entity_var'].lower()
         days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
         input_df = this.de_ref(f'entity/{self.config["entity"]}/user_var_table').get_table_data()#(select_columns=[touch_point_var, conversion_var])
-        self.logger.info(",".join(input_df.columns))
         input_df.columns = [x.lower() for x in input_df.columns]
         filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
         
