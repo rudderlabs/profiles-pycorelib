@@ -4,10 +4,24 @@ A Python Native package that registers the core python models
 
 ## Models
 
-- Common Col Union
+- CommonColumnUnion
 - PyPlot
 
 ## Usage Examples:
+
+### - CommonColumnUnionModel
+
+#### Here's an example of how a CommonColumnUnionModel can be defined in a YAML configuration file:
+
+```yaml
+- name: test_common_column_union
+  model_type: common_column_union
+  model_spec:
+    inputs:
+      - inputs/tbl_a
+      - inputs/tbl_b
+      - inputs/tbl_c
+```
 
 ### - PyPlotModel
 
