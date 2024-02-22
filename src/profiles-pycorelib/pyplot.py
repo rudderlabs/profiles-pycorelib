@@ -63,7 +63,6 @@ class PyPlotModel(BaseModelType):
     
     def __init__(self, build_spec: dict, schema_version: int, pb_version: str) -> None:
         super().__init__(build_spec, schema_version, pb_version)
-        print(build_spec)
 
     def get_material_recipe(self) -> PyNativeRecipe:
         return PyPlotRecipe(
@@ -78,22 +77,14 @@ class PyPlotModel(BaseModelType):
 
 class PyPlotRecipe(PyNativeRecipe):
     def __init__(self, title, size, grid, x_axis, y_axis) -> None:
-        self.logger = Logger("graph_recipe")
-
         self.title=title
         self.size=size
         self.grid=grid
         self.x_axis=x_axis
         self.y_axis=y_axis
 
-        print(title)
-        print(size)
-        print(grid)
-        print(x_axis)
-        print(y_axis)
-
     def describe(self, this: WhtMaterial):
-        description=this.name()+'.png'+" is created"
+        description=this.name()+ "is created"
         return description, ".txt"
 
     def prepare(self, this: WhtMaterial):
@@ -102,7 +93,6 @@ class PyPlotRecipe(PyNativeRecipe):
         this.de_ref(self.y_axis.get("input"))
 
     def execute(self, this: WhtMaterial):
-        self.logger.info("Executing GraphModel")
         tablesList: List[pd.DataFrame] = []
         output_folder= (this.get_output_folder())
 
@@ -114,11 +104,8 @@ class PyPlotRecipe(PyNativeRecipe):
         for in_model in models:
             input_material = this.de_ref(in_model)
             if input_material is None:
-                self.logger.info(
-                    "Input material for {0} not found".format(in_model))
-                continue
+                self.logger.error("Input Matrial is Nil")
             df_or_iterator = input_material.get_df()
-
             if isinstance(df_or_iterator, pd.DataFrame):
                 tablesList.append(df_or_iterator)
             elif isinstance(df_or_iterator, Iterator):
@@ -127,15 +114,22 @@ class PyPlotRecipe(PyNativeRecipe):
         df_x=tablesList[0]
         df_y=tablesList[1]
 
-        if df_x[self.x_axis.get("transformation")]:
-            for i in range(len(df_x[self.x_axis.get("column")])):
-                df_x.at[i, self.x_axis.get("column")] = cexprtk.evaluate_expression(self.x_axis.get("transformation"), {"x": df_x.at[i, self.x_axis.get("column")]})
+        if ("transformation" in self.x_axis) and self.x_axis.get("transformation"):
+            try:
+                cexprtk.check_expression(self.x_axis.get("transformation"))
+                for i in range(len(df_x[self.x_axis.get("column")])):
+                    df_x.at[i, self.x_axis.get("column")] = cexprtk.evaluate_expression(self.x_axis.get("transformation"), {"x": df_x.at[i, self.x_axis.get("column")]})
+            except:
+                self.logger.error("Transformation of X-axis values cannot be done as invalid transformation-expression")
 
+        if ("transformation" in self.y_axis) and self.y_axis.get("transformation"):
+            try:
+                cexprtk.check_expression(self.y_axis.get("transformation"))
+                for i in range(len(df_y[self.y_axis.get("column")])):
+                    df_y.at[i, self.y_axis.get("column")] = cexprtk.evaluate_expression(self.y_axis.get("transformation"), {"y": df_y.at[i, self.y_axis.get("column")]})
+            except:
+                self.logger.error("Transformation of Y-axis values cannot be done as invalid transformation-expression")
 
-        if df_y[self.y_axis.get("transformation")]:
-            for i in range(len(df_y[self.y_axis.get("column")])):
-                df_y.at[i, self.y_axis.get("column")] = cexprtk.evaluate_expression(self.y_axis.get("transformation"), {"y": df_y.at[i, self.y_axis.get("column")]})
-      
         os.makedirs(output_folder, exist_ok=True)
 
         height, width = map(int, self.size.split('x'))

@@ -5,8 +5,13 @@ A Python Native package that registers the core python models
 ## Models
 
 - Common Col Union
+- PyPlot
 
-## This is how a PyPlotModel can be defined:
+## Usage Examples:
+
+### - PyPlotModel
+
+#### Here's an example of how a PyPlotModel can be defined in a YAML configuration file:
 
 ```yaml
 - name: total_ids_vs_credits_spent
