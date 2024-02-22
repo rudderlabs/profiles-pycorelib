@@ -135,4 +135,10 @@ class PyPlotRecipe(PyNativeRecipe):
         height, width = map(int, self.size.split('x'))
         file_name=this.name()
 
-        plotGraph(df_x[self.x_axis.get("column")], df_y[self.y_axis.get("column")], height,width ,self.x_axis.get("label"), self.y_axis.get("label"),output_folder, self.title, file_name,self.grid )
+        plotGraph(df_x[self.x_axis.get("column")],
+                  df_y[self.y_axis.get("column")],
+                  height,width ,self.x_axis.get("label"),
+                  self.y_axis.get("label"),
+                  output_folder,
+                  self.title,
+                  file_name,self.grid )
