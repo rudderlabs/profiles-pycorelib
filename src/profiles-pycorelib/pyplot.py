@@ -12,19 +12,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import cexprtk
 
-def plotGraph(df_x, df_y,h,w,label_x, label_y, output_folder, title, file_name, grid):
-    plt.figure(figsize=(h, w))
-    plt.plot(df_x, df_y, marker='o')
-    plt.xlabel(label_x)
-    plt.ylabel(label_y)
-    plt.title(title)
-    output_file_path = os.path.join(output_folder, file_name)
-    if grid:
-        plt.grid()
-    plt.savefig(output_file_path)
-
-
-
 class PyPlotModel(BaseModelType):
     TypeName = "pyplot"
     BuildSpecSchema= {
@@ -77,6 +64,7 @@ class PyPlotModel(BaseModelType):
 
 class PyPlotRecipe(PyNativeRecipe):
     def __init__(self, title, size, grid, x_axis, y_axis) -> None:
+        self.logger = Logger("graph_recipe")
         self.title=title
         self.size=size
         self.grid=grid
@@ -88,7 +76,6 @@ class PyPlotRecipe(PyNativeRecipe):
         return description, ".txt"
 
     def prepare(self, this: WhtMaterial):
-        self.logger.info("Preparing")
         this.de_ref(self.x_axis.get("input"))
         this.de_ref(self.y_axis.get("input"))
 
@@ -104,7 +91,7 @@ class PyPlotRecipe(PyNativeRecipe):
         for in_model in models:
             input_material = this.de_ref(in_model)
             if input_material is None:
-                self.logger.error("Input Matrial is Nil")
+                raise InputMaterialNoneError("No data provided")
             df_or_iterator = input_material.get_df()
             if isinstance(df_or_iterator, pd.DataFrame):
                 tablesList.append(df_or_iterator)
@@ -142,3 +129,20 @@ class PyPlotRecipe(PyNativeRecipe):
                   output_folder,
                   self.title,
                   file_name,self.grid )
+        
+class InputMaterialNoneError(Exception):
+    def __init__(self, message="input material is nil"):
+        self.message = message
+        super().__init__(self.message)
+
+
+def plotGraph(df_x, df_y,h,w,label_x, label_y, output_folder, title, file_name, grid):
+    plt.figure(figsize=(h, w))
+    plt.plot(df_x, df_y, marker='o')
+    plt.xlabel(label_x)
+    plt.ylabel(label_y)
+    plt.title(title)
+    output_file_path = os.path.join(output_folder, file_name)
+    if grid:
+        plt.grid()
+    plt.savefig(output_file_path)
