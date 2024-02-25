@@ -121,8 +121,8 @@ class PyPlotRecipe(PyNativeRecipe):
 
         height, width = map(int, self.size.split('x'))
         file_name=this.name()
-        self.logger.info("outpat path is : ", os.path.join(output_folder, file_name))
-
+        log_info="outpat path is : "+ str(os.path.join(output_folder, file_name))
+        self.logger.info(log_info)
         plotGraph(df_x[self.x_axis.get("column")],
                   df_y[self.y_axis.get("column")],
                   height,width ,self.x_axis.get("label"),
