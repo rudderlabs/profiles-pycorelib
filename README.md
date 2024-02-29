@@ -47,7 +47,7 @@ A Python Native package that registers the core python models
     y_axis:
       label: Credits Spent
       column: run_time_in_sec
-      input:
+      inputs:
         - models/id_stitcher_runtime
         - models/id_stitcher_runtime_2
       transformation: y / 3600
