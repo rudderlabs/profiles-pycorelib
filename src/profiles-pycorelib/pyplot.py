@@ -25,10 +25,10 @@ class PyPlotModel(BaseModelType):
             "properties": {
                 "label": {"type": "string"},
                 "column": {"type": "string"},
-                "input": {"type": "string"},
+                "inputs": {"type": "array", "items": {"type": "string"}},
                 "transformation": {"type": "string"}
             },
-            "required": ["label", "column", "input"],
+            "required": ["label", "column", "inputs"],
             "additionalProperties": False
             },
             "y_axis": {
@@ -36,10 +36,10 @@ class PyPlotModel(BaseModelType):
             "properties": {
                 "label": {"type": "string"},
                 "column": {"type": "string"},
-                "input": {"type": "string"},
+                "inputs": {"type": "array", "items": {"type": "string"}},
                 "transformation": {"type": "string"}
             },
-            "required": ["label", "column", "input"],
+            "required": ["label", "column", "inputs"],
             "additionalProperties": False
             },
             **MaterializationBuildSpecSchema["properties"],
@@ -76,18 +76,24 @@ class PyPlotRecipe(PyNativeRecipe):
         return description, ".txt"
 
     def prepare(self, this: WhtMaterial):
-        this.de_ref(self.x_axis.get("input"))
-        this.de_ref(self.y_axis.get("input"))
+        for input in self.x_axis.get("inputs"):
+            this.de_ref(input)
+        for input in self.y_axis.get("inputs"):
+            this.de_ref(input)
+
 
     def execute(self, this: WhtMaterial):
         tablesList: List[pd.DataFrame] = []
         output_folder= (this.get_output_folder())
 
-        models=[]
-        models.append(self.x_axis.get("input"))
-        models.append(self.y_axis.get("input"))
 
-        tablesList: List[pd.DataFrame] = []
+
+        models=[]
+        for input_model in self.x_axis.get("inputs"):
+            models.append(input_model)
+        for input_model in self.y_axis.get("inputs"):
+            models.append(input_model)
+
         for in_model in models:
             input_material = this.de_ref(in_model)
             if input_material is None:
@@ -97,9 +103,16 @@ class PyPlotRecipe(PyNativeRecipe):
                 tablesList.append(df_or_iterator)
             elif isinstance(df_or_iterator, Iterator):
                 tablesList.extend(df_or_iterator)
+        
+        
 
-        df_x=tablesList[0]
-        df_y=tablesList[1]
+
+        x_axis_dfs= tablesList[:(len(models)//2)]
+        y_axis_dfs= tablesList[(len(models)//2):]
+
+        df_x= pd.concat(x_axis_dfs, ignore_index=True)
+        df_y= pd.concat(y_axis_dfs, ignore_index=True)
+
 
         if ("transformation" in self.x_axis) and self.x_axis.get("transformation"):
             try:
