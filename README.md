@@ -40,11 +40,15 @@ A Python Native package that registers the core python models
     x_axis:
       label: Total IDs (in thousands)
       column: total_ids
-      input: models/id_stitcher_runtime
+      inputs:
+        - models/input_table_size
+        - models/input_table_size_2
       transformation: x / 1000
     y_axis:
       label: Credits Spent
       column: run_time_in_sec
-      input: models/id_stitcher_runtime
+      input:
+        - models/id_stitcher_runtime
+        - models/id_stitcher_runtime_2
       transformation: y / 3600
 ```
