@@ -72,7 +72,7 @@ class PyPlotRecipe(PyNativeRecipe):
         self.y_axis=y_axis
 
     def describe(self, this: WhtMaterial):
-        description=this.name()+ "is created"
+        description=this.name()+ "will be created to show the graphical representation of " + self.title +" ."
         return description, ".txt"
 
     def prepare(self, this: WhtMaterial):
@@ -97,15 +97,9 @@ class PyPlotRecipe(PyNativeRecipe):
         for in_model in models:
             input_material = this.de_ref(in_model)
             if input_material is None:
-                raise InputMaterialNoneError("No data provided")
-            df_or_iterator = input_material.get_df()
-            if isinstance(df_or_iterator, pd.DataFrame):
-                tablesList.append(df_or_iterator)
-            elif isinstance(df_or_iterator, Iterator):
-                tablesList.extend(df_or_iterator)
-        
-        
-
+                raise MaterialNotFoundError(f"this.de_ref: unable to get material for {in_model}")
+            material_df = input_material.get_df()
+            tablesList.append(material_df)
 
         x_axis_dfs= tablesList[:(len(models)//2)]
         y_axis_dfs= tablesList[(len(models)//2):]
@@ -114,28 +108,26 @@ class PyPlotRecipe(PyNativeRecipe):
         df_y= pd.concat(y_axis_dfs, ignore_index=True)
 
 
-        if ("transformation" in self.x_axis) and self.x_axis.get("transformation"):
+        if self.x_axis.get("transformation", False):
             try:
                 cexprtk.check_expression(self.x_axis.get("transformation"))
                 for i in range(len(df_x[self.x_axis.get("column")])):
                     df_x.at[i, self.x_axis.get("column")] = cexprtk.evaluate_expression(self.x_axis.get("transformation"), {"x": df_x.at[i, self.x_axis.get("column")]})
             except:
-                self.logger.error("Transformation of X-axis values cannot be done as invalid transformation-expression")
+                raise InvalidTransformationError("Transformation of X-axis values cannot be done as invalid transformation-expression")
 
-        if ("transformation" in self.y_axis) and self.y_axis.get("transformation"):
+        if self.y_axis.get("transformation", False):
             try:
                 cexprtk.check_expression(self.y_axis.get("transformation"))
                 for i in range(len(df_y[self.y_axis.get("column")])):
                     df_y.at[i, self.y_axis.get("column")] = cexprtk.evaluate_expression(self.y_axis.get("transformation"), {"y": df_y.at[i, self.y_axis.get("column")]})
             except:
-                self.logger.error("Transformation of Y-axis values cannot be done as invalid transformation-expression")
+                raise InvalidTransformationError("Transformation of Y-axis values cannot be done as invalid transformation-expression")
 
         os.makedirs(output_folder, exist_ok=True)
 
         height, width = map(int, self.size.split('x'))
         file_name=this.name()
-        log_info="outpat path is : "+ str(os.path.join(output_folder, file_name))
-        self.logger.info(log_info)
         plotGraph(df_x[self.x_axis.get("column")],
                   df_y[self.y_axis.get("column")],
                   height,width ,self.x_axis.get("label"),
@@ -144,8 +136,13 @@ class PyPlotRecipe(PyNativeRecipe):
                   self.title,
                   file_name,self.grid )
         
-class InputMaterialNoneError(Exception):
-    def __init__(self, message="input material is nil"):
+class MaterialNotFoundError(Exception):
+    def __init__(self, message="this.de_ref: unable to get material"):
+        self.message = message
+        super().__init__(self.message)
+
+class InvalidTransformationError(Exception):
+    def __init__(self, message="transformation expression is invalid"):
         self.message = message
         super().__init__(self.message)
 
