@@ -183,7 +183,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         #return "foo", ".txt"
     
     
-    def get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col, conversion_col:str, response_col: str):
+    def _get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col, conversion_col:str, response_col: str):
         input_df = input_df.copy()
         input_df["first_touch_tmp"] = input_df[touchpoints_array_col].apply(lambda touchpoints: touchpoints[0] if touchpoints and len(touchpoints) else None)
         input_df["last_touch_tmp"] = input_df[touchpoints_array_col].apply(lambda touchpoints: touchpoints[-1] if touchpoints and len(touchpoints) else None)
@@ -204,13 +204,12 @@ class AttributionModelRecipe(PyNativeRecipe):
         del input_df["first_touch_tmp"], input_df["last_touch_tmp"]
         return pd.merge(first_touch_data, last_touch_data, on=response_col, how="outer")
 
-
     # execute the material
     def execute(self, this: WhtMaterial):
         touch_point_var = self.config['touchpoint_var'].lower()
         conversion_var = self.config['conversion_entity_var'].lower()
         days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
-        input_df = this.de_ref(f'entity/{self.config["entity"]}/user_var_table').get_table_data()#(select_columns=[touch_point_var, conversion_var])
+        input_df = this.de_ref(f'{self.config["entity"]}/all/var_table').get_df()#(select_columns=[touch_point_var, conversion_var])
         input_df.columns = [x.lower() for x in input_df.columns]
         filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
         
@@ -220,7 +219,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         #touchpoint_data.join(conversion_data, on="user_id", how="outer")
         
         #input_data = input_material.get_table_data()# Returns the data frame. renamed to get_df in 0.11
-        attribution_scores = self.get_first_touch_scores(filtered_df,
+        attribution_scores = self._get_first_touch_scores(filtered_df,
                                                          touch_point_var, 
                                                          conversion_var, 
                                                          self.config["output_field"])
@@ -231,3 +230,10 @@ class AttributionModelRecipe(PyNativeRecipe):
         this.write_output(attribution_scores)
         # this.name # name of the material
         # this.get_output_folder() # where the output files are present
+        # Create a directory with the material name in the output folder
+        import pathlib
+        import os
+        output_folder = this.get_output_folder()
+        material_name = this.name()
+        material_folder = os.path.join(output_folder, material_name)
+        pathlib.Path(material_folder).mkdir(parents=True, exist_ok=True)
