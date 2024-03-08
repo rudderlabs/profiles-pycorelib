@@ -231,9 +231,9 @@ class AttributionModelRecipe(PyNativeRecipe):
         # this.name # name of the material
         # this.get_output_folder() # where the output files are present
         # Create a directory with the material name in the output folder
-        import pathlib
-        import os
-        output_folder = this.get_output_folder()
-        material_name = this.name()
-        material_folder = os.path.join(output_folder, material_name)
-        pathlib.Path(material_folder).mkdir(parents=True, exist_ok=True)
+        # import pathlib
+        # import os
+        # output_folder = this.get_output_folder()
+        # material_name = this.name()
+        # material_folder = os.path.join(output_folder, material_name)
+        # pathlib.Path(material_folder).mkdir(parents=True, exist_ok=True)
