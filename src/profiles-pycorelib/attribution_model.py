@@ -214,7 +214,12 @@ class AttributionModelRecipe(PyNativeRecipe):
         filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
         
         filtered_df.columns = [x.lower() for x in input_df.columns]
-        filtered_df[touch_point_var] = filtered_df[touch_point_var].apply(lambda x: ast.literal_eval(x))
+        def _convert_str_to_list(x):
+            try:
+                return ast.literal_eval(x)
+            except ValueError:
+                return []
+        filtered_df[touch_point_var] = filtered_df[touch_point_var].apply(_convert_str_to_list)
         # user_var_table, 
         #touchpoint_data.join(conversion_data, on="user_id", how="outer")
         
