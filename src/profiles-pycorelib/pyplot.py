@@ -20,6 +20,7 @@ class PyPlotModel(BaseModelType):
             "title": {"type": "string"},
             "size": {"type": "string", "pattern": "^\\d+x\\d+$"},
             "grid": {"type": "boolean"},
+            "extension": {"type": "string"},
             "x_axis": {
             "type": "object",
             "properties": {
@@ -44,7 +45,7 @@ class PyPlotModel(BaseModelType):
             },
             **MaterializationBuildSpecSchema["properties"],
         },
-        "required": ["title", "x_axis", "y_axis"],
+        "required": ["title", "extension","x_axis", "y_axis"],
         "additionalProperties": False
         }
     
@@ -61,6 +62,9 @@ class PyPlotModel(BaseModelType):
         )
     def validate(self):
         return self.schema_version >= 51, "schema version should >= 51"
+    
+    def get_db_object_name_suffix(self):
+        return self.build_spec.get("extension")
 
 class PyPlotRecipe(PyNativeRecipe):
     def __init__(self, title, size, grid, x_axis, y_axis) -> None:

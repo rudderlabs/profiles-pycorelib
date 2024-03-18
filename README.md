@@ -37,6 +37,7 @@ A Python Native package that registers the core python models
     title: Total IDs vs. Credits Spent
     size: 8x8 # Optional with Defaults
     grid: true # Optional with Defaults
+    extension: .png
     x_axis:
       label: Total IDs (in thousands)
       column: total_ids
