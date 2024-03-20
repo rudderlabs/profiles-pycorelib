@@ -17,7 +17,6 @@ A sample yaml that uses this is as follows:
       days_since_first_seen_var: days_since_first_seen
       first_seen_since: 90
       conversion_entity_var: gross_amt_spent_overall
-      output_field: campaigns
       entity: user      
 ```
 
