@@ -7,9 +7,16 @@ from profiles_rudderstack.schema import ContractBuildSpecSchema, EntityKeyBuildS
 from profiles_rudderstack.recipe import PyNativeRecipe
 from profiles_rudderstack.material import WhtMaterial
 from profiles_rudderstack.logger import Logger
+import seaborn as sns
+import matplotlib
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import ast
+import os
+import pathlib
+
+matplotlib.use('agg')
 
 class AttributionModel(BaseModelType):
     TypeName = "campaign_attribution_scores" # the name of the model type
@@ -21,8 +28,7 @@ class AttributionModel(BaseModelType):
             "touchpoint_var" : { "type": "string" }, # model
             "days_since_first_seen_var": { "type": "string" }, # model
             "first_seen_since": { "type": "integer" },
-            "conversion_entity_var": { "type": "string" }, #model
-            "output_field": { "type": "string" },          
+            "conversion_entity_var": { "type": "string" }, #model 
             "entity": { "type": "string"}
             # extend your schema from pre-defined schemas
             # **ContractBuildSpecSchema["properties"],
@@ -30,7 +36,7 @@ class AttributionModel(BaseModelType):
             # **EntityIdsBuildSpecSchema["properties"],
             # **MaterializationBuildSpecSchema["properties"],
         },
-        "required": ["entity", "touchpoint_var", "days_since_first_seen_var", "first_seen_since", "conversion_entity_var", "output_field"],
+        "required": ["entity", "touchpoint_var", "days_since_first_seen_var", "first_seen_since", "conversion_entity_var"],
         "additionalProperties": False
     }
 
@@ -50,44 +56,69 @@ class AttributionModel(BaseModelType):
         return True, "Validated successfully"
 
 class MultiTouchModels:
-    def linear_model(input_df, touchpoints_array_col, conversion_col:str, response_col: str):
+    def linear_model(input_df, touchpoints_array_col, conversion_col:str) -> pd.DataFrame:
         input_df = input_df.copy()
         input_df['n_touches'] = input_df[touchpoints_array_col].apply(lambda x: len(x) if x else 0)
         input_df['weight'] = input_df.apply(lambda row: row[conversion_col]/row['n_touches'] if row['n_touches']>0 else 0, axis=1)
         linear_scores = input_df.explode(touchpoints_array_col).groupby(touchpoints_array_col).agg({'weight':'sum'}).reset_index()
-        linear_scores.columns = [response_col, "linear_score"]
+        linear_scores.columns = [touchpoints_array_col, "linear_score"]
         del input_df['n_touches'], input_df['weight']
         return linear_scores
     
     @staticmethod
     def _generate_transition_counts(journey_list: List[List[Union[int, str]]], 
                                 distinct_touches_list: List[Union[int, str]], 
-                                is_positive: bool):
+                                is_positive: bool,
+                                journey_weights: List[float] = None):
         if is_positive:
             destination_idx = -1
         else:
             destination_idx = -2
         transition_counts = np.zeros(((len(distinct_touches_list)+3), (len(distinct_touches_list)+3)))
-        for journey in journey_list:
-            transition_counts[0, (distinct_touches_list.index(journey[0])+1)] += 1 # First point in the path
+        for journey_id, journey in enumerate(journey_list):
+            journey_weight = journey_weights[journey_id] if is_positive and journey_weights else 1
+            transition_counts[0, (distinct_touches_list.index(journey[0])+1)] += journey_weight # First point in the path
             for n, touch_point in enumerate(journey):
                 if n == len(journey) - 1:
                     # Reached last point
-                    transition_counts[(distinct_touches_list.index(touch_point)+1), destination_idx] += 1
-                    transition_counts[destination_idx, destination_idx]+=1
+                    transition_counts[(distinct_touches_list.index(touch_point)+1), destination_idx] += journey_weight
+                    transition_counts[destination_idx, destination_idx]+=journey_weight
                 else:
-                    transition_counts[(distinct_touches_list.index(touch_point)+1), (distinct_touches_list.index(journey[n+1]) + 1)] +=1
+                    transition_counts[(distinct_touches_list.index(touch_point)+1), (distinct_touches_list.index(journey[n+1]) + 1)] +=journey_weight
         transition_labels = distinct_touches_list.copy()
         transition_labels.insert(0, "Start")
         transition_labels.extend(["Dropoff", "Converted"])
         return transition_counts, transition_labels
+    @staticmethod
+    def _plot_transitions(transition_probabilities: np.array, 
+                          labels: List[Union[int, str]], 
+                          image_path, title="Markov model transition probabilities", 
+                          show_annotations=True):
+        ax = sns.heatmap(transition_probabilities,
+                        linewidths=0.5,
+                        robust=True, 
+                        annot_kws={"size":8}, 
+                        annot=show_annotations,
+                        fmt=".2f",
+                        cmap="YlGnBu",
+                        xticklabels=labels,
+                        yticklabels=labels)
+        ax.tick_params(labelsize=10)
+        ax.figure.set_size_inches((16, 10))
+        ax.set_ylabel("Previous Step")
+        ax.set_xlabel("Next Step")
+        ax.set_title(title)
+        plt.savefig(image_path)
     
     @staticmethod
     def _get_transition_probabilities(converted_touchpoints_list: List[List[Union[int, str]]], 
                                     dropoff_touchpoints_list: List[List[Union[int, str]]], 
-                                    distinct_touches_list: List[Union[int, str]]) -> Tuple[np.array, List[Union[int, str]]]:
-        row_normalize_np_array = lambda transition_counts: transition_counts / transition_counts.sum(axis=1)[:, np.newaxis]
-        pos_transitions, _ = MultiTouchModels._generate_transition_counts(converted_touchpoints_list, distinct_touches_list, is_positive=True)
+                                    distinct_touches_list: List[Union[int, str]],
+                                    journey_weights: List[float] = None) -> Tuple[np.array, List[Union[int, str]]]:
+        row_normalize_np_array = lambda transition_counts: np.where(transition_counts.sum(axis=1)[:, np.newaxis] != 0,
+                                                            transition_counts / transition_counts.sum(axis=1)[:, np.newaxis],
+                                                            0)
+        pos_transitions, _ = MultiTouchModels._generate_transition_counts(converted_touchpoints_list, distinct_touches_list, is_positive=True, journey_weights=journey_weights)
         neg_transitions, labels = MultiTouchModels._generate_transition_counts(dropoff_touchpoints_list, distinct_touches_list, is_positive=False)
         all_transitions = pos_transitions + neg_transitions
         transition_probabilities = row_normalize_np_array(all_transitions)
@@ -124,11 +155,16 @@ class MultiTouchModels:
     @staticmethod
     def _get_markov_scores(tp_list_positive: List[List[Union[int, str]]],
                             tp_list_negative: List[List[Union[int, str]]], 
-                            distinct_touches_list: List[str]) -> Tuple[Dict[Union[int, str], float], np.array]:
-        transition_probabilities, labels = MultiTouchModels._get_transition_probabilities(tp_list_positive, tp_list_negative, distinct_touches_list)
+                            distinct_touches_list: List[str],
+                            journey_weights: List[float]=None,
+                            attribution_reports_folder_path:str=None) -> Tuple[Dict[Union[int, str], float], np.array]:
+        transition_probabilities, labels = MultiTouchModels._get_transition_probabilities(tp_list_positive, tp_list_negative, distinct_touches_list, journey_weights=journey_weights)
         transition_probabilities_converged = MultiTouchModels._converge(transition_probabilities, max_iters=500, verbose=False)
+        if attribution_reports_folder_path:
+            image_file = os.path.join(attribution_reports_folder_path, "markov_transition_probabilities.png")
+            MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
         removal_affects = MultiTouchModels._get_removal_affects(transition_probabilities, labels, default_conversion=transition_probabilities_converged[0,-1])
-        total_conversions = len(tp_list_positive)
+        total_conversions = sum(journey_weights) if journey_weights else len(tp_list_positive)
         attributable_conversions = {}
         total_weight = sum(removal_affects.values())
         for tp, weight in removal_affects.items():
@@ -136,20 +172,17 @@ class MultiTouchModels:
         return attributable_conversions
     
     @staticmethod
-    def get_markov_attribution(input_df, conversion_col, touchpoints_array_col, output_column_name):
-        positive_touchpoints_ = input_df.query(f"{conversion_col}>0").filter([touchpoints_array_col]).values
-        positive_touches = [val[0]  if val is not None else None for val in positive_touchpoints_]
-        negative_touchpoints_ = input_df.query(f"{conversion_col}==0").filter([touchpoints_array_col]).values
-        negatives_touches = [val[0]  if val is not None else None for val in negative_touchpoints_]
-        distinct_touches = list(set([item for sublist in positive_touches + negatives_touches for item in sublist]))
-        distinct_touches.remove(None) if None in distinct_touches else None
-        distinct_touches.remove('None') if 'None' in distinct_touches else None
-        distinct_touches = sorted(distinct_touches)
-        positive_touchpoints = [list(filter(lambda x: x is not None, x)) for x in positive_touches if len(x)>0]
-        negative_touchpoints = [list(filter(lambda x: x is not None, x)) for x in negatives_touches if len(x)>0]
-        scores =  MultiTouchModels._get_markov_scores(positive_touchpoints, negative_touchpoints, distinct_touches)
+    def get_markov_attribution(input_df: pd.DataFrame, conversion_col: str, touchpoints_array_col: str, attribution_reports_folder_path: str) -> pd.DataFrame:
+        data_filtered = input_df[input_df[touchpoints_array_col].apply(lambda touches: len(touches)>0 if touches else False)]
+        positive_touchpoints_ = data_filtered.query(f"{conversion_col}>0")[[touchpoints_array_col, conversion_col]].values
+        positive_touches = [val[0] for val in positive_touchpoints_]
+        conversion_weights = [val[1] for val in positive_touchpoints_]
+        negative_touchpoints_ = data_filtered.query(f"{conversion_col}==0")[[touchpoints_array_col]].values
+        negative_touches = [val[0] for val in negative_touchpoints_]
+        distinct_touches = sorted(list(set([item for sublist in positive_touches + negative_touches for item in sublist])))
+        scores = MultiTouchModels._get_markov_scores(positive_touches, negative_touches, distinct_touches, journey_weights=conversion_weights, attribution_reports_folder_path=attribution_reports_folder_path)
         markov_df = pd.DataFrame.from_dict(scores, orient="index", columns=["markov_scores"]).reset_index()
-        markov_df.columns = [output_column_name, "markov_scores"]
+        markov_df.columns = [touchpoints_array_col, "markov_scores"]
         return markov_df
     
     
@@ -183,7 +216,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         #return "foo", ".txt"
     
     
-    def _get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col, conversion_col:str, response_col: str):
+    def _get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col: str, conversion_col:str):
         input_df = input_df.copy()
         input_df["first_touch_tmp"] = input_df[touchpoints_array_col].apply(lambda touchpoints: touchpoints[0] if touchpoints and len(touchpoints) else None)
         input_df["last_touch_tmp"] = input_df[touchpoints_array_col].apply(lambda touchpoints: touchpoints[-1] if touchpoints and len(touchpoints) else None)
@@ -199,10 +232,23 @@ class AttributionModelRecipe(PyNativeRecipe):
                         .reset_index()
                         .filter(["last_touch_tmp", conversion_col])
                         )
-        first_touch_data.columns = [response_col, "first_touch_conversion"]
-        last_touch_data.columns = [response_col, "last_touch_conversion"]
+        first_touch_data.columns = [touchpoints_array_col, "first_touch_conversion"]
+        last_touch_data.columns = [touchpoints_array_col, "last_touch_conversion"]
         del input_df["first_touch_tmp"], input_df["last_touch_tmp"]
-        return pd.merge(first_touch_data, last_touch_data, on=response_col, how="outer")
+        return pd.merge(first_touch_data, last_touch_data, on=touchpoints_array_col, how="outer")
+    
+    def _plot_results(self, final_scores:pd.DataFrame, touchpoint_column: str, output_folder:str):
+        df_long = pd.melt(final_scores, touchpoint_column, list(final_scores))
+        df_long.columns = ['touch', 'method', 'attribution']
+        plt.figure(figsize=(16,6))
+        sns.barplot(data=df_long, x='touch', y='attribution', hue='method', palette=sns.color_palette('Paired'), saturation=0.75)
+        plt.xticks(rotation=90)
+        plt.legend(loc='upper right')
+        plt.xlabel('Touch')
+        plt.ylabel('Attribution')
+        plt.title('Attribution by Touch and Method')
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_folder, "attribution_scores.png"))
 
     # execute the material
     def execute(self, this: WhtMaterial):
@@ -223,22 +269,29 @@ class AttributionModelRecipe(PyNativeRecipe):
         # user_var_table, 
         #touchpoint_data.join(conversion_data, on="user_id", how="outer")
         
-        #input_data = input_material.get_table_data()# Returns the data frame. renamed to get_df in 0.11
+        #Create a directory with the material name in the output folder
+        output_folder = this.get_output_folder() # where the output files are present
+        material_name = this.name() # name of the material
+        attribution_reports_folder = os.path.join(output_folder, material_name)
+        
+        pathlib.Path(attribution_reports_folder).mkdir(parents=True, exist_ok=True)
         attribution_scores = self._get_first_touch_scores(filtered_df,
                                                          touch_point_var, 
-                                                         conversion_var, 
-                                                         self.config["output_field"])
-        linear_scores = MultiTouchModels.linear_model(filtered_df, touch_point_var, conversion_var, self.config["output_field"])
-        markov_scores = MultiTouchModels.get_markov_attribution(filtered_df, conversion_var, touch_point_var, self.config["output_field"])
-        attribution_scores = pd.merge(attribution_scores, linear_scores, on=self.config["output_field"], how="outer")
-        attribution_scores = pd.merge(attribution_scores, markov_scores, on=self.config["output_field"], how="outer")
+                                                         conversion_var)
+        linear_scores = MultiTouchModels.linear_model(filtered_df, touch_point_var, conversion_var)
+        markov_scores = MultiTouchModels.get_markov_attribution(filtered_df, conversion_var, touch_point_var, attribution_reports_folder)
+        attribution_scores = pd.merge(attribution_scores, linear_scores, on=touch_point_var, how="outer")
+        attribution_scores = pd.merge(attribution_scores, markov_scores, on=touch_point_var, how="outer")
+        try:
+            self._plot_results(attribution_scores, touch_point_var, attribution_reports_folder)
+        except Exception as e:
+            self.logger.error(f"Could not plot the attribution scores: {e}")
+
+        total_conversions = attribution_scores['first_touch_conversion'].sum()
+        for col in list(attribution_scores):
+            if col not in [touch_point_var, 'total_conversions']:
+                attribution_scores[f"{col}_normalised"] = 100*attribution_scores[col].div(total_conversions, axis=0).round(2)
+
+        attribution_scores = attribution_scores.sort_values(by='first_touch_conversion', ascending=False)
+        
         this.write_output(attribution_scores)
-        # this.name # name of the material
-        # this.get_output_folder() # where the output files are present
-        # Create a directory with the material name in the output folder
-        # import pathlib
-        # import os
-        # output_folder = this.get_output_folder()
-        # material_name = this.name()
-        # material_folder = os.path.join(output_folder, material_name)
-        # pathlib.Path(material_folder).mkdir(parents=True, exist_ok=True)
