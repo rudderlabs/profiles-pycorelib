@@ -26,8 +26,6 @@ This yaml would be part of a standard profiles project with following mandatory 
 3. `conversion_entity_var`: This is the entity that is being measured. It is a numeric/boolean field. It is used to calculate the attribution scores. For example, to attribute revenue to different campaign sources, this would be something like amount_spent_overall. To attribute conversions to different campaign sources, this would be a boolean entity var such as is_converted, is_payer, has_signed_up etc. The boolean column can have values as True/False, or 1/0. Both are handled. 1 is treated as True and 0 as False. WARNING: If this is a numeric column, markov model treats it as boolean only, with anything > 0 is counted as a conversion. This is a temporary limitation and will be fixed in future
 
 Limitations in V0:
-1. Markov chain value scores needs to be QA'ed by comparing with some external tool, as the logic is a bit complex and there's no reliable single source of truth for reference.
-2. markov scores need to be implemented for the revenue based conversions
-3. Not calculating shapley values. Only - first touch, last touch, linear, and markov. We can also include other models such as time decay, position based etc.
-4. Has strict assumptions on the datatypes- mainly touch points - we should probably support comma separated string types too and convert that as arraytype in this model
-5. The data gets loaded in memory. So, if the data is too large, it might crash on rudder-sources (in UI). Also privacy concerns may arise.  
+1. Not calculating shapley values. Only - first touch, last touch, linear, and markov. We can also include other models such as time decay, position based etc.
+2. Has strict assumptions on the datatypes- mainly touch points - we should probably support comma separated string types too and convert that as arraytype in this model
+3. The data gets loaded in memory. So, if the data is too large, it might crash on UI. This is typically not a problem for local runs. 

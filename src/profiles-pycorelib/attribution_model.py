@@ -1,7 +1,4 @@
-# Commenting out this model as this has some breaking changes for v0.10.4
-# This will be fixed in the next release
 from typing import List, Dict, Tuple, Union
-
 from profiles_rudderstack.model import BaseModelType
 from profiles_rudderstack.schema import ContractBuildSpecSchema, EntityKeyBuildSpecSchema, EntityIdsBuildSpecSchema, MaterializationBuildSpecSchema
 from profiles_rudderstack.recipe import PyNativeRecipe
@@ -202,9 +199,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         #return self.python, ".py"
         description = """You can see the output table in the warehouse where each touchpoint has an attribution score according to different attribution model.\n
         Linear and Markov models are multi-touch attribution models where the conversion is attributed to multiple touchpoints. 
-        If the conversion column is boolean, it gets a weight of 1. If it's a numeric column, it gets the value of the conversion - except for in markov models.
-        In markov models, each conversion is treated equally (for now). 
-        So if the conversion column is numeric, it is likely that in a markov model, the scores will look very different compared to other models.
+        If the conversion column is boolean, it gets a weight of 1. If it's a numeric column, it gets the value of the conversion.
         """
         return  description, ".txt"
 
@@ -213,7 +208,6 @@ class AttributionModelRecipe(PyNativeRecipe):
         this.de_ref(self.inputs["touchpoints"])
         this.de_ref(self.inputs["days_since_first_seen"])
         this.de_ref(self.inputs["conversion"])
-        #return "foo", ".txt"
     
     
     def _get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col: str, conversion_col:str):
@@ -266,9 +260,7 @@ class AttributionModelRecipe(PyNativeRecipe):
             except ValueError:
                 return []
         filtered_df[touch_point_var] = filtered_df[touch_point_var].apply(_convert_str_to_list)
-        # user_var_table, 
-        #touchpoint_data.join(conversion_data, on="user_id", how="outer")
-        
+
         #Create a directory with the material name in the output folder
         output_folder = this.get_output_folder() # where the output files are present
         material_name = this.name() # name of the material
