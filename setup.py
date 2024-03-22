@@ -29,5 +29,9 @@ setup(
     packages=find_packages(where='src'),
     install_requires=[
         f"profiles-rudderstack=={limit_major_minor_version(version)}",
+        "seaborn>=0.13.1",
+        "matplotlib>=3.7.5",
+        "pandas>=2.0.3,<2.2.0",
+        "numpy>=1.24.4"
     ]
 )
