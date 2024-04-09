@@ -204,7 +204,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         return  description, ".txt"
 
     # prepare the material for execution - de_ref the inputs and create the sql code
-    def prepare(self, this: WhtMaterial):
+    def register_dependencies(self, this: WhtMaterial):
         this.de_ref(self.inputs["touchpoints"])
         this.de_ref(self.inputs["days_since_first_seen"])
         this.de_ref(self.inputs["conversion"])
