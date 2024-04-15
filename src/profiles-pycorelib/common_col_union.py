@@ -38,7 +38,48 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
     def describe(self, this: WhtMaterial):
         return self.sql, ".sql"
 
-    def prepare(self, this: WhtMaterial):
+    def register_dependencies(self, this: WhtMaterial):
+        is_null_ctx = this.wht_ctx.is_null_ctx
+        if is_null_ctx:
+            for in_model in self.inputs:
+                this.de_ref(in_model, edge_type="optional")
+            return
+        
+        inputs = [] # enabled inputs
+        common_columns_count = {}
+        for in_model in self.inputs:
+            in_material = this.de_ref(in_model, edge_type="optional")
+            if in_material is None:
+                continue # disabled
+
+            inputs.append(in_model)
+
+        union_sql = ""
+        union_queries = []
+        for in_model in inputs:
+            union_queries.append(
+            f"""{{% with input_mat = this.DeRef('{in_model}') %}}
+                    select  <determined at runtime> from {{{{input_mat}}}}
+                {{% endwith %}}"""
+            )
+            
+        union_sql = " UNION ALL ".join(union_queries)
+        
+        
+        sql = this.execute_text_template(
+            f"""
+            {{% macro begin_block() %}}
+                {{% macro selector_sql() %}}
+                    {union_sql}
+                {{% endmacro %}}
+                {{% exec %}} {{{{warehouse.CreateReplaceTableAs(this.Name(), selector_sql())}}}} {{% endexec %}}
+            {{% endmacro %}}
+            
+            {{% exec %}} {{{{warehouse.BeginEndBlock(begin_block())}}}} {{% endexec %}}"""
+        )
+        self.sql = sql            
+
+    def execute(self, this: WhtMaterial):
         is_null_ctx = this.wht_ctx.is_null_ctx
         if is_null_ctx:
             for in_model in self.inputs:
@@ -98,9 +139,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
             
             {{% exec %}} {{{{warehouse.BeginEndBlock(begin_block())}}}} {{% endexec %}}"""
         )
-        self.sql = sql            
-
-    def execute(self, this: WhtMaterial):
+        self.sql = sql        
         if self.sql == "":
             self.logger.error("error executing common_column_union_recipe, sql is empty")
         
