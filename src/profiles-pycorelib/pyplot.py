@@ -51,19 +51,9 @@ class PyPlotModel(BaseModelType):
     }
 
     def __init__(self, build_spec: dict, schema_version: int, pb_version: str) -> None:
-        print("i am inside pyplot model")
         super().__init__(build_spec, schema_version, pb_version)
 
     def get_material_recipe(self) -> PyNativeRecipe:
-        print("lets print  buildspecs: ")
-        print(self.build_spec.get("title"))
-        print(self.build_spec.get("size", "8x8"))
-        print(self.build_spec.get("grid", False))
-        print(self.build_spec.get("x_axis"))
-        print(self.build_spec.get("y_axis"))
-        # user_input = input("Enter input: ")
-        # print(user_input)
-
         return PyPlotRecipe(
             self.build_spec.get("title"),
             self.build_spec.get("size", "8x8"),
@@ -76,20 +66,12 @@ class PyPlotModel(BaseModelType):
         return self.schema_version >= 51, "schema version should >= 51"
 
     def get_db_object_name_suffix(self):
-        print("lets print extension")
-        print(self.build_spec.get("extension"))
         return self.build_spec.get("extension")
 
 
 class PyPlotRecipe(PyNativeRecipe):
     def __init__(self, title, size, grid, x_axis, y_axis) -> None:
-        print("we are in init")
-        print(title)
-        print(size)
-        print(grid)
-        print(x_axis)
-        print(y_axis)
-        self.logger = Logger("graph_recipe")
+        self.logger = Logger("pyplot_recipe")
         self.title = title
         self.size = size
         self.grid = grid
@@ -98,7 +80,7 @@ class PyPlotRecipe(PyNativeRecipe):
 
     def describe(self, this: WhtMaterial):
         description = this.name() + \
-            "will be created to show the graphical representation of " + self.title + " ."
+            " will be created to show the graphical representation of " + self.title + " ."
         return description, ".txt"
 
     def register_dependencies(self, this: WhtMaterial):
@@ -110,9 +92,6 @@ class PyPlotRecipe(PyNativeRecipe):
     def execute(self, this: WhtMaterial):
         tablesList: List[pd.DataFrame] = []
         output_folder = (this.get_output_folder())
-
-        print("lets see what is the output folder")
-        print(output_folder)
 
         models = []
         for input_model in self.x_axis.get("inputs"):
@@ -158,7 +137,6 @@ class PyPlotRecipe(PyNativeRecipe):
 
         height, width = map(int, self.size.split('x'))
         file_name = this.name()
-        print("lets plot and save the graph")
         plotGraph(df_x[self.x_axis.get("column")],
                   df_y[self.y_axis.get("column")],
                   height, width, self.x_axis.get("label"),
@@ -181,12 +159,6 @@ class InvalidTransformationError(Exception):
 
 
 def plotGraph(df_x, df_y, h, w, label_x, label_y, output_folder, title, file_name, grid):
-    print(df_x)
-    print(df_y)
-    print(h)
-    print(w)
-    print(label_x)
-    print(label_y)
     plt.figure(figsize=(h, w))
     plt.plot(df_x, df_y, marker='o')
     plt.xlabel(label_x)
@@ -195,19 +167,8 @@ def plotGraph(df_x, df_y, h, w, label_x, label_y, output_folder, title, file_nam
     output_file_path = os.path.join(output_folder, file_name)
     if grid:
         plt.grid()
-    print(output_file_path)
     plt.savefig(output_file_path)
-    plt.savefig(output_file_path+".png")
 
     if not os.path.exists(output_file_path):
         raise FileNotFoundError(
             "Error: Plot was not saved at the specified location:", output_file_path)
-
-    else:
-        print(
-            "wohooooooo: Plot was not saved at the specified location:", output_file_path)
-        # user_input = input("Enter something: ")
-        # print("wohooooooo! it exists: ", output_file_path)
-
-
-# samples/profiles-performace-report/migrations/profiles-performace-report_schema_v60/output/shopify/seq_no/3458/Material_ft_graph_03a5517a_3458.png:
