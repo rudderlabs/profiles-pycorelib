@@ -9,7 +9,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import ast
 import os
 import pathlib
 
@@ -256,8 +255,8 @@ class AttributionModelRecipe(PyNativeRecipe):
         filtered_df.columns = [x.lower() for x in input_df.columns]
         def _convert_str_to_list(x):
             try:
-                return ast.literal_eval(x)
-            except ValueError:
+                return x.split(",")
+            except:
                 return []
         filtered_df[touch_point_var] = filtered_df[touch_point_var].apply(_convert_str_to_list)
 
