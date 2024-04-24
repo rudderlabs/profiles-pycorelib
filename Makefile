@@ -1,6 +1,6 @@
 PRODUCT_NAME=profiles-pycorelib
 
-VERS=0.12.0rc6
+VERS=0.12.0rc7
 GIT_COMMIT=`git rev-parse --short HEAD`
 VERS_DATE=`date -u +%Y-%m-%d\ %H:%M`
 VERS_FILE=./version.py
