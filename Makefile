@@ -1,4 +1,4 @@
-VERS?=0.11.0
+VERS?=0.12.0
 VERS_FILE=./version.py
 
 .PHONY: update_version
