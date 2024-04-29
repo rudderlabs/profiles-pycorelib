@@ -1,3 +1,4 @@
+from errors import MaterialNotFoundError, InvalidTransformationError
 import cexprtk
 import matplotlib.pyplot as plt
 from profiles_rudderstack.model import BaseModelType
@@ -11,7 +12,6 @@ from typing import Iterator
 import os
 import matplotlib
 matplotlib.use('Agg')
-
 
 class PyPlotModel(BaseModelType):
     TypeName = "pyplot"
@@ -144,19 +144,6 @@ class PyPlotRecipe(PyNativeRecipe):
                   output_folder,
                   self.title,
                   file_name, self.grid)
-
-
-class MaterialNotFoundError(Exception):
-    def __init__(self, message="this.de_ref: unable to get material"):
-        self.message = message
-        super().__init__(self.message)
-
-
-class InvalidTransformationError(Exception):
-    def __init__(self, message="transformation expression is invalid"):
-        self.message = message
-        super().__init__(self.message)
-
 
 def plotGraph(df_x, df_y, h, w, label_x, label_y, output_folder, title, file_name, grid):
     plt.figure(figsize=(h, w))
