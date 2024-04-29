@@ -1,0 +1,74 @@
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      whtRelease:
+        description: 'The wht release, e.g. v0.0.1-rc.1'
+        required: true
+        type: string
+      releaseRef:
+        description: 'The branch from which the release will be created'
+        required: true
+        type: string
+        default: 'main'
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.whtRelease }}
+      GH_TOKEN: ${{ secrets.PAT }}
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: ${{ inputs.releaseRef }}
+          fetch-depth: 0
+      
+      # If releaseRef doesn't exist checkout the `main` branch
+      - name: fallback to main
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: setup git config
+        run: |
+          git config --global user.email "devops-github-rudderstack@users.noreply.github.com"
+          git config --global user.name "devops-github-rudderstack"
+          
+      - name: set version and create tag
+        run: |
+          VERS=$VERSION make update_version
+          git add . && git commit -m "chore: release ${VERSION}"
+          git tag -a ${VERSION} -m "release ${VERSION}"
+      
+      - name: pip install
+        shell: bash
+        run: pip install wheel setuptools
+      
+      - name: build profiles-pycorelib wheel
+        shell: bash
+        run: |
+          python setup.py bdist_wheel
+      
+      - name: prepare dist archive
+        shell: bash
+        run: |
+          ls -la
+          ls -la dist
+          tar -czvf profiles_pycorelib_dist_${VERSION}.tar.gz dist
+      
+      - name: push tag and create release
+        shell: bash
+        run: |
+          git push origin ${VERSION} 
+          gh release create ${VERSION} --generate-notes profiles_pycorelib_dist_${VERSION}.tar.gz dist/*.whl
