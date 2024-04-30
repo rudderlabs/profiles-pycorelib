@@ -1,4 +1,4 @@
-from errors import MaterialNotFoundError, InvalidTransformationError
+from .errors import MaterialNotFoundError, InvalidTransformationError
 import cexprtk
 import matplotlib.pyplot as plt
 from profiles_rudderstack.model import BaseModelType

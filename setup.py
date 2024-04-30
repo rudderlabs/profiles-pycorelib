@@ -29,7 +29,7 @@ setup(
     packages=find_packages(where='src'),
     install_requires=[
         f"profiles-rudderstack=={limit_major_minor_version(version)}",
-        'cexprtk>=0.4.1'
+        "cexprtk>=0.4.1",
         "seaborn>=0.13.1",
         "matplotlib>=3.7.5",
         "pandas>=2.0.3,<2.2.0",
