@@ -1,0 +1,38 @@
+name: publish
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'The pycorelib release, e.g. v0.0.1-rc.1'
+        required: true
+        type: string
+      environment:
+        type: choice
+        description: pypi environment
+        options:
+        - pypi-test
+        - pypi-prod
+      
+jobs:
+  profiles-pycorelib:
+    name: publish profiles-pycorelib
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.release }}
+      GH_TOKEN: ${{ secrets.PAT }}
+    environment:
+      name: ${{ inputs.environment || 'pypi-test' }}
+      url: ${{ vars.URL }}/p/profiles-pycorelib
+    permissions:
+      id-token: write
+    steps:
+      - name: download
+        shell: bash
+        run: |
+          gh release download ${VERSION} --repo github.com/rudderlabs/profiles-pycorelib --pattern "profiles_pycorelib_dist_${VERSION}.tar.gz" -O ./dist.tar.gz
+          tar -zxvf dist.tar.gz
+      - name: publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ vars.REPOSITORY_URL }}
+          skip-existing: true
