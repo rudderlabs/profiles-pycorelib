@@ -156,9 +156,9 @@ class MultiTouchModels:
                             attribution_reports_folder_path:str=None) -> Tuple[Dict[Union[int, str], float], np.array]:
         transition_probabilities, labels = MultiTouchModels._get_transition_probabilities(tp_list_positive, tp_list_negative, distinct_touches_list, journey_weights=journey_weights)
         transition_probabilities_converged = MultiTouchModels._converge(transition_probabilities, max_iters=500, verbose=False)
-        if attribution_reports_folder_path:
-            image_file = os.path.join(attribution_reports_folder_path, "markov_transition_probabilities.png")
-            MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
+        # if attribution_reports_folder_path and len(labels) <= 10:
+        #     image_file = os.path.join(attribution_reports_folder_path, "markov_transition_probabilities.png")
+        #     MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
         removal_affects = MultiTouchModels._get_removal_affects(transition_probabilities, labels, default_conversion=transition_probabilities_converged[0,-1])
         total_conversions = sum(journey_weights) if journey_weights else len(tp_list_positive)
         attributable_conversions = {}
@@ -273,10 +273,11 @@ class AttributionModelRecipe(PyNativeRecipe):
         markov_scores = MultiTouchModels.get_markov_attribution(filtered_df, conversion_var, touch_point_var, attribution_reports_folder)
         attribution_scores = pd.merge(attribution_scores, linear_scores, on=touch_point_var, how="outer")
         attribution_scores = pd.merge(attribution_scores, markov_scores, on=touch_point_var, how="outer")
-        try:
-            self._plot_results(attribution_scores, touch_point_var, attribution_reports_folder)
-        except Exception as e:
-            self.logger.error(f"Could not plot the attribution scores: {e}")
+        # if len(attribution_scores) <= 10:
+        #     try:
+        #         self._plot_results(attribution_scores, touch_point_var, attribution_reports_folder)
+        #     except Exception as e:
+        #         self.logger.error(f"Could not plot the attribution scores: {e}")
 
         total_conversions = attribution_scores['first_touch_conversion'].sum()
         for col in list(attribution_scores):
