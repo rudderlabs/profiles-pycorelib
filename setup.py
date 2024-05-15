@@ -16,7 +16,7 @@ def limit_major_minor_version(version: str) -> str:
         >>> limit_major_minor_version("1.2.3")
         '1.2.*'
     """
-    return ".".join(version.split(".")[:2]) + ".*"
+    return ".".join(version.split(".")[:2]).replace('v', '') + ".*"
 
 
 setup(
