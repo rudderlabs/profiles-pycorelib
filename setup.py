@@ -33,6 +33,7 @@ setup(
         "seaborn>=0.13.1",
         "matplotlib>=3.7.5",
         "pandas>=2.0.3,<2.2.0",
-        "numpy>=1.24.4"
+        "numpy>=1.24.4",
+        "plotly>=5.22.0"
     ]
 )
