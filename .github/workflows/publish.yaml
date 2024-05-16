@@ -10,6 +10,7 @@ on:
         type: choice
         description: pypi environment
         options:
+        - pypi-dev-rudder
         - pypi-test
         - pypi-prod
       
@@ -20,8 +21,10 @@ jobs:
     env:
       VERSION: ${{ inputs.release }}
       GH_TOKEN: ${{ secrets.PAT }}
+      USER: ${{ secrets.USER }}
+      PASSWORD: ${{ secrets.PASSWORD }}
     environment:
-      name: ${{ inputs.environment || 'pypi-test' }}
+      name: ${{ inputs.environment }}
       url: ${{ vars.URL }}/p/profiles-pycorelib
     permissions:
       id-token: write
@@ -35,4 +38,5 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: ${{ vars.REPOSITORY_URL }}
-          skip-existing: true
+          user: ${{ env.USER || '__token__' }}
+          password: ${{ env.PASSWORD || '' }}
