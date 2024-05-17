@@ -93,7 +93,7 @@ class MultiTouchModels:
     def _plot_transitions(transition_probabilities: np.array, 
                           labels: List[Union[int, str]], 
                           image_path, 
-                          title="Markov model transition probabilities"):
+                          title="User Journey Map"):
         n_labels = len(labels)
         color_hex_codes = [mcolors.to_hex(plt.cm.viridis(i/n_labels)) for i in range(n_labels)]
         fig = go.Figure(data=[go.Sankey(
@@ -166,11 +166,8 @@ class MultiTouchModels:
         transition_probabilities, labels = MultiTouchModels._get_transition_probabilities(tp_list_positive, tp_list_negative, distinct_touches_list, journey_weights=journey_weights)
         transition_probabilities_converged = MultiTouchModels._converge(transition_probabilities, max_iters=500, verbose=False)
         if attribution_reports_folder_path and enable_visualisation:
-            if len(distinct_touches_list) <= MAXIMUM_TOUCHPOINTS_TO_VISUALIZE:
-                image_file = os.path.join(attribution_reports_folder_path, "markov_transition_probabilities.html")
-                MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
-            else:
-                print("Too many touchpoints to visualise. Please use final attribution score table to visualize results.")
+            image_file = os.path.join(attribution_reports_folder_path, "user_journey_map.html")
+            MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
         removal_affects = MultiTouchModels._get_removal_affects(transition_probabilities, labels, default_conversion=transition_probabilities_converged[0,-1])
         total_conversions = sum(journey_weights) if journey_weights else len(tp_list_positive)
         attributable_conversions = {}
@@ -282,6 +279,9 @@ class AttributionModelRecipe(PyNativeRecipe):
         attribution_scores = self._get_first_touch_scores(filtered_df,
                                                          touch_point_var, 
                                                          conversion_var)
+        if attribution_scores.shape[0] > MAXIMUM_TOUCHPOINTS_TO_VISUALIZE:
+            enable_visualisation = False
+            self.logger.info(f"Skipping visualising the attribution model outputs as there are too many touchpoints. Visualisation is supported only when we have fewer than {MAXIMUM_TOUCHPOINTS_TO_VISUALIZE} touchpoints.")
         linear_scores = MultiTouchModels.linear_model(filtered_df, touch_point_var, conversion_var)
         markov_scores = MultiTouchModels.get_markov_attribution(filtered_df, conversion_var, touch_point_var, attribution_reports_folder, enable_visualisation)
         attribution_scores = pd.merge(attribution_scores, linear_scores, on=touch_point_var, how="outer")
