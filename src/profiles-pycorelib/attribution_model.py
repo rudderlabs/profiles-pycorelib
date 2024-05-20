@@ -279,7 +279,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         attribution_scores = self._get_first_touch_scores(filtered_df,
                                                          touch_point_var, 
                                                          conversion_var)
-        if attribution_scores.shape[0] > MAXIMUM_TOUCHPOINTS_TO_VISUALIZE:
+        if enable_visualisation and (attribution_scores.shape[0] > MAXIMUM_TOUCHPOINTS_TO_VISUALIZE):
             enable_visualisation = False
             self.logger.info(f"Skipping visualising the attribution model outputs as there are too many touchpoints. Visualisation is supported only when we have fewer than {MAXIMUM_TOUCHPOINTS_TO_VISUALIZE} touchpoints.")
         linear_scores = MultiTouchModels.linear_model(filtered_df, touch_point_var, conversion_var)
