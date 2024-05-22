@@ -216,6 +216,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         this.de_ref(self.inputs["touchpoints"])
         this.de_ref(self.inputs["days_since_first_seen"])
         this.de_ref(self.inputs["conversion"])
+        this.de_ref(f'{self.config["entity"]}/all/var_table')
     
     
     def _get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col: str, conversion_col:str):
