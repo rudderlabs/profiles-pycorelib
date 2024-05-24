@@ -198,7 +198,8 @@ class AttributionModelRecipe(PyNativeRecipe):
         self.logger = Logger("attribution_model") # create a logger for debug/error logging
         self.inputs = {"touchpoints": f'entity/{self.config["entity"]}/{self.config["touchpoint_var"]}',
                        "conversion": f'entity/{self.config["entity"]}/{self.config["conversion_entity_var"]}', 
-                       "days_since_first_seen": f'entity/{self.config["entity"]}/{self.config["days_since_first_seen_var"]}'
+                       "days_since_first_seen": f'entity/{self.config["entity"]}/{self.config["days_since_first_seen_var"]}',
+                       "var_table": f'{self.config["entity"]}/all/var_table',
                        }
 
 
@@ -216,6 +217,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         this.de_ref(self.inputs["touchpoints"])
         this.de_ref(self.inputs["days_since_first_seen"])
         this.de_ref(self.inputs["conversion"])
+        this.de_ref(self.inputs["var_table"])
     
     
     def _get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col: str, conversion_col:str):
@@ -258,7 +260,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         conversion_var = self.config['conversion_entity_var'].lower()
         days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
         enable_visualisation = self.config.get('enable_visualisation', True)
-        input_df = this.de_ref(f'{self.config["entity"]}/all/var_table').get_df()#(select_columns=[touch_point_var, conversion_var])
+        input_df = this.de_ref(self.inputs["var_table"]).get_df()#(select_columns=[touch_point_var, conversion_var])
         input_df.columns = [x.lower() for x in input_df.columns]
         filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
         
