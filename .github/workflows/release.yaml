@@ -26,7 +26,6 @@ jobs:
         with:
           ref: ${{ inputs.releaseRef }}
           fetch-depth: 0
-      
       # If releaseRef doesn't exist checkout the `main` branch
       - name: fallback to main
         if: steps.checkout.outcome == 'failure'
@@ -34,41 +33,35 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      
       - name: setup python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-      
       - name: setup git config
         run: |
           git config --global user.email "devops-github-rudderstack@users.noreply.github.com"
           git config --global user.name "devops-github-rudderstack"
-          
       - name: set version and create tag
         run: |
           VERS=$VERSION make update_version
           git add . && git commit -m "chore: release ${VERSION}"
           git tag -a ${VERSION} -m "release ${VERSION}"
-      
       - name: pip install
         shell: bash
         run: pip install wheel setuptools
-      
       - name: build profiles-pycorelib wheel
         shell: bash
         run: |
           python setup.py bdist_wheel
-      
       - name: prepare dist archive
         shell: bash
         run: |
           ls -la
           ls -la dist
           tar -czvf profiles_pycorelib_dist_${VERSION}.tar.gz dist
-      
       - name: push tag and create release
         shell: bash
         run: |
-          git push origin ${VERSION} 
-          gh release create ${VERSION} --generate-notes profiles_pycorelib_dist_${VERSION}.tar.gz dist/*.whl
+          git push origin ${VERSION}
+          gh release create ${VERSION} $(echo $VERSION | grep -q "alpha\|beta\|rc" && echo "-p") --generate-notes profiles_pycorelib_dist_${VERSION}.tar.gz dist/*.whl
+          git push origin HEAD
