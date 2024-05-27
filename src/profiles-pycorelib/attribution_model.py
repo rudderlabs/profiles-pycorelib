@@ -139,9 +139,12 @@ class MultiTouchModels:
         return T_upd.numpy()    
     
     @staticmethod
-    def _get_removal_affects(transition_probs, labels, ignore_labels=["Start", "Dropoff","Converted"], default_conversion=1.):
+    def _get_removal_affects(transition_probs, labels, logger, ignore_labels=["Start", "Dropoff","Converted"], default_conversion=1.):
         removal_affect = {}
         for n, label in enumerate(labels):
+            # Add info for every 10% progress
+            if n % (len(labels)//10) == 0:
+                logger.info(f"Computing removal affects: {n/len(labels)*100:.2f}%")
             if label in ignore_labels:
                 continue
             else:
@@ -176,7 +179,7 @@ class MultiTouchModels:
         # if attribution_reports_folder_path and len(labels) <= 10:
         #     image_file = os.path.join(attribution_reports_folder_path, "markov_transition_probabilities.png")
         #     MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
-        removal_affects = MultiTouchModels._get_removal_affects(transition_probabilities, labels, default_conversion=transition_probabilities_converged[0,-1])
+        removal_affects = MultiTouchModels._get_removal_affects(transition_probabilities, labels, logger, default_conversion=transition_probabilities_converged[0,-1])
         total_conversions = sum(journey_weights) if journey_weights else len(tp_list_positive)
         attributable_conversions = {}
         total_weight = sum(removal_affects.values())
