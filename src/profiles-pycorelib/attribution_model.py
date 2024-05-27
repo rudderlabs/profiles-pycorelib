@@ -4,6 +4,7 @@ from profiles_rudderstack.schema import ContractBuildSpecSchema, EntityKeyBuildS
 from profiles_rudderstack.recipe import PyNativeRecipe
 from profiles_rudderstack.material import WhtMaterial
 from profiles_rudderstack.logger import Logger
+import torch
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
@@ -11,8 +12,9 @@ import pandas as pd
 import numpy as np
 import os
 import pathlib
-
+import time
 matplotlib.use('agg')
+
 
 class AttributionModel(BaseModelType):
     TypeName = "campaign_attribution_scores" # the name of the model type
@@ -120,19 +122,21 @@ class MultiTouchModels:
         transition_probabilities = row_normalize_np_array(all_transitions)
         return transition_probabilities, labels
     @staticmethod
-    def _converge(transition_matrix, max_iters=200, verbose=True):
+    def _converge(transition_matrix, max_iters=40, verbose=False):
+        transition_matrix = torch.tensor(transition_matrix, dtype=torch.float32)
         T_upd = transition_matrix
         prev_T = transition_matrix
+
         for i in range(max_iters):
-            T_upd = np.matmul(transition_matrix, prev_T)
-            if np.abs(T_upd - prev_T).max()<1e-5:
+            T_upd = torch.matmul(transition_matrix, prev_T)
+            if torch.abs(T_upd - prev_T).max() < 1e-3:
                 if verbose:
                     print(f"{i} iters taken for convergence")
-                return T_upd
+                return T_upd.numpy()
             prev_T = T_upd
         if verbose:
             print(f"Max iters of {max_iters} reached before convergence. Exiting")
-        return T_upd
+        return T_upd.numpy()    
     
     @staticmethod
     def _get_removal_affects(transition_probs, labels, ignore_labels=["Start", "Dropoff","Converted"], default_conversion=1.):
@@ -144,18 +148,31 @@ class MultiTouchModels:
                 drop_transition = transition_probs.copy()
                 drop_transition[n,:] = 0. # Drop all transitions from this touchpoint
                 drop_transition[n,-2] = 1. # Force all touches to dropoff from this touchpoint
-                drop_transition_converged = MultiTouchModels._converge(drop_transition, 500, False)
+                drop_transition_converged = MultiTouchModels._converge(drop_transition)
                 removal_affect[label] = default_conversion - drop_transition_converged[0,-1]
         return removal_affect
+    
+    @staticmethod
+    def _converged_transition_probabilities(transition_probabilities, logger):
+        tic = time.time()
+        converged_transition_probabilities = MultiTouchModels._converge(transition_probabilities)
+        toc = time.time()
+        time_per_iter = (toc - tic)
+        total_iters = transition_probabilities.shape[0]
+        eta =  time_per_iter * total_iters
+        if eta > 300:
+            logger.info(f"Computing Markov score. This step may take a while. ETA: {eta} seconds")
+        return converged_transition_probabilities
     
     @staticmethod
     def _get_markov_scores(tp_list_positive: List[List[Union[int, str]]],
                             tp_list_negative: List[List[Union[int, str]]], 
                             distinct_touches_list: List[str],
+                            logger,
                             journey_weights: List[float]=None,
-                            attribution_reports_folder_path:str=None) -> Tuple[Dict[Union[int, str], float], np.array]:
+                            attribution_reports_folder_path:str=None,) -> Tuple[Dict[Union[int, str], float], np.array]:
         transition_probabilities, labels = MultiTouchModels._get_transition_probabilities(tp_list_positive, tp_list_negative, distinct_touches_list, journey_weights=journey_weights)
-        transition_probabilities_converged = MultiTouchModels._converge(transition_probabilities, max_iters=500, verbose=False)
+        transition_probabilities_converged = MultiTouchModels._converged_transition_probabilities(transition_probabilities, logger)
         # if attribution_reports_folder_path and len(labels) <= 10:
         #     image_file = os.path.join(attribution_reports_folder_path, "markov_transition_probabilities.png")
         #     MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
@@ -168,7 +185,7 @@ class MultiTouchModels:
         return attributable_conversions
     
     @staticmethod
-    def get_markov_attribution(input_df: pd.DataFrame, conversion_col: str, touchpoints_array_col: str, attribution_reports_folder_path: str) -> pd.DataFrame:
+    def get_markov_attribution(input_df: pd.DataFrame, conversion_col: str, touchpoints_array_col: str, attribution_reports_folder_path: str, logger) -> pd.DataFrame:
         data_filtered = input_df[input_df[touchpoints_array_col].apply(lambda touches: len(touches)>0 if touches else False)]
         positive_touchpoints_ = data_filtered.query(f"{conversion_col}>0")[[touchpoints_array_col, conversion_col]].values
         positive_touches = [val[0] for val in positive_touchpoints_]
@@ -176,7 +193,7 @@ class MultiTouchModels:
         negative_touchpoints_ = data_filtered.query(f"{conversion_col}==0")[[touchpoints_array_col]].values
         negative_touches = [val[0] for val in negative_touchpoints_]
         distinct_touches = sorted(list(set([item for sublist in positive_touches + negative_touches for item in sublist])))
-        scores = MultiTouchModels._get_markov_scores(positive_touches, negative_touches, distinct_touches, journey_weights=conversion_weights, attribution_reports_folder_path=attribution_reports_folder_path)
+        scores = MultiTouchModels._get_markov_scores(positive_touches, negative_touches, distinct_touches, logger, journey_weights=conversion_weights, attribution_reports_folder_path=attribution_reports_folder_path)
         markov_df = pd.DataFrame.from_dict(scores, orient="index", columns=["markov_scores"]).reset_index()
         markov_df.columns = [touchpoints_array_col, "markov_scores"]
         return markov_df
@@ -270,7 +287,7 @@ class AttributionModelRecipe(PyNativeRecipe):
                                                          touch_point_var, 
                                                          conversion_var)
         linear_scores = MultiTouchModels.linear_model(filtered_df, touch_point_var, conversion_var)
-        markov_scores = MultiTouchModels.get_markov_attribution(filtered_df, conversion_var, touch_point_var, attribution_reports_folder)
+        markov_scores = MultiTouchModels.get_markov_attribution(filtered_df, conversion_var, touch_point_var, attribution_reports_folder, self.logger)
         attribution_scores = pd.merge(attribution_scores, linear_scores, on=touch_point_var, how="outer")
         attribution_scores = pd.merge(attribution_scores, markov_scores, on=touch_point_var, how="outer")
         # if len(attribution_scores) <= 10:
