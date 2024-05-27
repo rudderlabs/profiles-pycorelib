@@ -161,7 +161,7 @@ class MultiTouchModels:
         total_iters = transition_probabilities.shape[0]
         eta =  time_per_iter * total_iters
         if eta > 300:
-            logger.info(f"Computing Markov score. This step may take a while. ETA: {eta} seconds")
+            logger.info(f"Computing Markov score. This step may take a while. ETA: {eta: .2f} seconds")
         return converged_transition_probabilities
     
     @staticmethod
