@@ -224,18 +224,21 @@ class AttributionModelRecipe(PyNativeRecipe):
         input_df = input_df.copy()
         input_df["first_touch_tmp"] = input_df[touchpoints_array_col].apply(lambda touchpoints: touchpoints[0] if touchpoints and len(touchpoints) else None)
         input_df["last_touch_tmp"] = input_df[touchpoints_array_col].apply(lambda touchpoints: touchpoints[-1] if touchpoints and len(touchpoints) else None)
-        first_touch_data = (input_df
-                            .groupby("first_touch_tmp")
-                            .sum(conversion_col)
+        try:
+            first_touch_data = (input_df
+                                .groupby("first_touch_tmp")[conversion_col]
+                                .sum()
+                                .reset_index()
+                                .filter(["first_touch_tmp", conversion_col])
+                                )
+            last_touch_data = (input_df
+                            .groupby("last_touch_tmp")[conversion_col]
+                            .sum()
                             .reset_index()
-                            .filter(["first_touch_tmp", conversion_col])
+                            .filter(["last_touch_tmp", conversion_col])
                             )
-        last_touch_data = (input_df
-                        .groupby("last_touch_tmp")
-                        .sum(conversion_col)
-                        .reset_index()
-                        .filter(["last_touch_tmp", conversion_col])
-                        )
+        except:
+            raise ValueError("conversion_entity_var is not numeric column. Please provide a numeric column for conversion.")
         first_touch_data.columns = [touchpoints_array_col, "first_touch_conversion"]
         last_touch_data.columns = [touchpoints_array_col, "last_touch_conversion"]
         del input_df["first_touch_tmp"], input_df["last_touch_tmp"]
