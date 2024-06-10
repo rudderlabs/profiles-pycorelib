@@ -6,12 +6,14 @@ from profiles_rudderstack.material import WhtMaterial
 from profiles_rudderstack.logger import Logger
 import seaborn as sns
 import matplotlib
+import scipy.linalg as linalg
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
+import time
 import pathlib
 
 matplotlib.use('agg')
@@ -56,7 +58,10 @@ class AttributionModel(BaseModelType):
         return True, "Validated successfully"
 
 class MultiTouchModels:
-    def linear_model(input_df, touchpoints_array_col, conversion_col:str) -> pd.DataFrame:
+    def __init__(self, logger):
+        self.logger = logger
+
+    def linear_model(self, input_df, touchpoints_array_col, conversion_col:str) -> pd.DataFrame:
         input_df = input_df.copy()
         input_df['n_touches'] = input_df[touchpoints_array_col].apply(lambda x: len(x) if x else 0)
         input_df['weight'] = input_df.apply(lambda row: row[conversion_col]/row['n_touches'] if row['n_touches']>0 else 0, axis=1)
@@ -65,8 +70,7 @@ class MultiTouchModels:
         del input_df['n_touches'], input_df['weight']
         return linear_scores
     
-    @staticmethod
-    def _generate_transition_counts(journey_list: List[List[Union[int, str]]], 
+    def _generate_transition_counts(self, journey_list: List[List[Union[int, str]]], 
                                 distinct_touches_list: List[Union[int, str]], 
                                 is_positive: bool,
                                 journey_weights: List[float] = None):
@@ -89,8 +93,9 @@ class MultiTouchModels:
         transition_labels.insert(0, "Start")
         transition_labels.extend(["Dropoff", "Converted"])
         return transition_counts, transition_labels
-    @staticmethod
-    def _plot_transitions(transition_probabilities: np.array, 
+    
+    def _plot_transitions(self, 
+                          transition_probabilities: np.array, 
                           labels: List[Union[int, str]], 
                           image_path, 
                           title="User Journey Map"):
@@ -114,36 +119,36 @@ class MultiTouchModels:
         fig.update_layout(title_text=f"<b>{title}</b>", font_size=10, title_x=0.5)
         fig.write_html(image_path)
     
-    @staticmethod
-    def _get_transition_probabilities(converted_touchpoints_list: List[List[Union[int, str]]], 
+    def _get_transition_probabilities(self, 
+                                    converted_touchpoints_list: List[List[Union[int, str]]], 
                                     dropoff_touchpoints_list: List[List[Union[int, str]]], 
                                     distinct_touches_list: List[Union[int, str]],
                                     journey_weights: List[float] = None) -> Tuple[np.array, List[Union[int, str]]]:
         row_normalize_np_array = lambda transition_counts: np.where(transition_counts.sum(axis=1)[:, np.newaxis] != 0,
                                                             transition_counts / transition_counts.sum(axis=1)[:, np.newaxis],
                                                             0)
-        pos_transitions, _ = MultiTouchModels._generate_transition_counts(converted_touchpoints_list, distinct_touches_list, is_positive=True, journey_weights=journey_weights)
-        neg_transitions, labels = MultiTouchModels._generate_transition_counts(dropoff_touchpoints_list, distinct_touches_list, is_positive=False)
+        pos_transitions, _ = self._generate_transition_counts(converted_touchpoints_list, distinct_touches_list, is_positive=True, journey_weights=journey_weights)
+        neg_transitions, labels = self._generate_transition_counts(dropoff_touchpoints_list, distinct_touches_list, is_positive=False)
         all_transitions = pos_transitions + neg_transitions
         transition_probabilities = row_normalize_np_array(all_transitions)
         return transition_probabilities, labels
-    @staticmethod
-    def _converge(transition_matrix, max_iters=200, verbose=True):
-        T_upd = transition_matrix
-        prev_T = transition_matrix
+    
+    def _converge(self, transition_matrix, max_iters=40, verbose=False):
+        transition_matrix = np.array(transition_matrix, dtype=np.float32)
+        T_upd = transition_matrix.copy()
+        prev_T = transition_matrix.copy()
         for i in range(max_iters):
-            T_upd = np.matmul(transition_matrix, prev_T)
-            if np.abs(T_upd - prev_T).max()<1e-5:
+            T_upd = linalg.blas.dgemm(1.0, transition_matrix, prev_T)
+            if np.abs(T_upd - prev_T).max() < 1e-3:
                 if verbose:
-                    print(f"{i} iters taken for convergence")
+                    self.logger.info(f"{i} iters taken for convergence")
                 return T_upd
             prev_T = T_upd
         if verbose:
-            print(f"Max iters of {max_iters} reached before convergence. Exiting")
+            self.logger.info(f"Max iters of {max_iters} reached before convergence. Exiting")
         return T_upd
     
-    @staticmethod
-    def _get_removal_affects(transition_probs, labels, ignore_labels=["Start", "Dropoff","Converted"], default_conversion=1.):
+    def _get_removal_affects(self, transition_probs, labels, ignore_labels=["Start", "Dropoff","Converted"], default_conversion=1.):
         removal_affect = {}
         for n, label in enumerate(labels):
             if label in ignore_labels:
@@ -152,23 +157,34 @@ class MultiTouchModels:
                 drop_transition = transition_probs.copy()
                 drop_transition[n,:] = 0. # Drop all transitions from this touchpoint
                 drop_transition[n,-2] = 1. # Force all touches to dropoff from this touchpoint
-                drop_transition_converged = MultiTouchModels._converge(drop_transition, 500, False)
+                drop_transition_converged = self._converge(drop_transition)
                 removal_affect[label] = default_conversion - drop_transition_converged[0,-1]
         return removal_affect
     
-    @staticmethod
-    def _get_markov_scores(tp_list_positive: List[List[Union[int, str]]],
+    def _converged_transition_probabilities(self, transition_probabilities):
+        tic = time.time()
+        converged_transition_probabilities = self._converge(transition_probabilities)
+        toc = time.time()
+        time_per_iter = (toc - tic)
+        total_iters = transition_probabilities.shape[0]
+        eta =  time_per_iter * total_iters
+        if eta > 300:
+            self.logger.info(f"Computing Markov score. This step may take a while. ETA: {eta: .2f} seconds")
+        return converged_transition_probabilities
+    
+    def _get_markov_scores(self, 
+                            tp_list_positive: List[List[Union[int, str]]],
                             tp_list_negative: List[List[Union[int, str]]], 
                             distinct_touches_list: List[str],
                             enable_visualisation: bool,
                             journey_weights: List[float]=None,
-                            attribution_reports_folder_path:str=None) -> Tuple[Dict[Union[int, str], float], np.array]:
-        transition_probabilities, labels = MultiTouchModels._get_transition_probabilities(tp_list_positive, tp_list_negative, distinct_touches_list, journey_weights=journey_weights)
-        transition_probabilities_converged = MultiTouchModels._converge(transition_probabilities, max_iters=500, verbose=False)
+                            attribution_reports_folder_path:str=None,) -> Tuple[Dict[Union[int, str], float], np.array]:
+        transition_probabilities, labels = self._get_transition_probabilities(tp_list_positive, tp_list_negative, distinct_touches_list, journey_weights=journey_weights)
+        transition_probabilities_converged = self._converged_transition_probabilities(transition_probabilities)
         if attribution_reports_folder_path and enable_visualisation:
             image_file = os.path.join(attribution_reports_folder_path, "user_journey_map.html")
-            MultiTouchModels._plot_transitions(transition_probabilities, labels, image_file)
-        removal_affects = MultiTouchModels._get_removal_affects(transition_probabilities, labels, default_conversion=transition_probabilities_converged[0,-1])
+            self._plot_transitions(transition_probabilities, labels, image_file)
+        removal_affects = self._get_removal_affects(transition_probabilities, labels, default_conversion=transition_probabilities_converged[0,-1])
         total_conversions = sum(journey_weights) if journey_weights else len(tp_list_positive)
         attributable_conversions = {}
         total_weight = sum(removal_affects.values())
@@ -176,8 +192,7 @@ class MultiTouchModels:
             attributable_conversions[tp] = weight/total_weight * total_conversions
         return attributable_conversions
     
-    @staticmethod
-    def get_markov_attribution(input_df: pd.DataFrame, conversion_col: str, touchpoints_array_col: str, attribution_reports_folder_path: str, enable_visualisation: bool) -> pd.DataFrame:
+    def get_markov_attribution(self, input_df: pd.DataFrame, conversion_col: str, touchpoints_array_col: str, attribution_reports_folder_path: str, enable_visualisation: bool) -> pd.DataFrame:
         data_filtered = input_df[input_df[touchpoints_array_col].apply(lambda touches: len(touches)>0 if touches else False)]
         positive_touchpoints_ = data_filtered.query(f"{conversion_col}>0")[[touchpoints_array_col, conversion_col]].values
         positive_touches = [val[0] for val in positive_touchpoints_]
@@ -185,7 +200,7 @@ class MultiTouchModels:
         negative_touchpoints_ = data_filtered.query(f"{conversion_col}==0")[[touchpoints_array_col]].values
         negative_touches = [val[0] for val in negative_touchpoints_]
         distinct_touches = sorted(list(set([item for sublist in positive_touches + negative_touches for item in sublist])))
-        scores = MultiTouchModels._get_markov_scores(positive_touches, negative_touches, distinct_touches, journey_weights=conversion_weights, attribution_reports_folder_path=attribution_reports_folder_path, enable_visualisation=enable_visualisation)
+        scores = self._get_markov_scores(positive_touches, negative_touches, distinct_touches, journey_weights=conversion_weights, attribution_reports_folder_path=attribution_reports_folder_path, enable_visualisation=enable_visualisation)
         markov_df = pd.DataFrame.from_dict(scores, orient="index", columns=["markov_scores"]).reset_index()
         markov_df.columns = [touchpoints_array_col, "markov_scores"]
         return markov_df
@@ -266,6 +281,8 @@ class AttributionModelRecipe(PyNativeRecipe):
         input_df = this.de_ref(self.inputs["var_table"]).get_df()#(select_columns=[touch_point_var, conversion_var])
         input_df.columns = [x.lower() for x in input_df.columns]
         filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
+
+        multitouch_models = MultiTouchModels(self.logger)
         
         filtered_df.columns = [x.lower() for x in input_df.columns]
         def _convert_str_to_list(x):
@@ -287,8 +304,8 @@ class AttributionModelRecipe(PyNativeRecipe):
         if enable_visualisation and (attribution_scores.shape[0] > MAXIMUM_TOUCHPOINTS_TO_VISUALIZE):
             enable_visualisation = False
             self.logger.info(f"Skipping visualising the attribution model outputs as there are too many touchpoints. Visualisation is supported only when we have fewer than {MAXIMUM_TOUCHPOINTS_TO_VISUALIZE} touchpoints.")
-        linear_scores = MultiTouchModels.linear_model(filtered_df, touch_point_var, conversion_var)
-        markov_scores = MultiTouchModels.get_markov_attribution(filtered_df, conversion_var, touch_point_var, attribution_reports_folder, enable_visualisation)
+        linear_scores = multitouch_models.linear_model(filtered_df, touch_point_var, conversion_var)
+        markov_scores = multitouch_models.get_markov_attribution(filtered_df, conversion_var, touch_point_var, attribution_reports_folder, enable_visualisation)
         attribution_scores = pd.merge(attribution_scores, linear_scores, on=touch_point_var, how="outer")
         attribution_scores = pd.merge(attribution_scores, markov_scores, on=touch_point_var, how="outer")
         try:

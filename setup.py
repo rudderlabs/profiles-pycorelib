@@ -34,6 +34,7 @@ setup(
         "matplotlib>=3.7.5",
         "pandas>=2.0.3,<2.2.0",
         "numpy>=1.24.4",
+        "scipy>=1.13.0",
         "plotly>=5.22.0"
     ]
 )
