@@ -58,8 +58,8 @@ class AttributionModel(BaseModelType):
         return True, "Validated successfully"
 
 class MultiTouchModels:
-    def __init__(self):
-        self.logger = Logger("multitouch_models") # create a logger for debug/error logging
+    def __init__(self, logger):
+        self.logger = logger
 
     def linear_model(self, input_df, touchpoints_array_col, conversion_col:str) -> pd.DataFrame:
         input_df = input_df.copy()
@@ -133,7 +133,7 @@ class MultiTouchModels:
         transition_probabilities = row_normalize_np_array(all_transitions)
         return transition_probabilities, labels
     
-    def _converge(self, transition_matrix, max_iters=40, verbose=True):
+    def _converge(self, transition_matrix, max_iters=40, verbose=False):
         transition_matrix = np.array(transition_matrix, dtype=np.float32)
         T_upd = transition_matrix.copy()
         prev_T = transition_matrix.copy()
@@ -157,13 +157,13 @@ class MultiTouchModels:
                 drop_transition = transition_probs.copy()
                 drop_transition[n,:] = 0. # Drop all transitions from this touchpoint
                 drop_transition[n,-2] = 1. # Force all touches to dropoff from this touchpoint
-                drop_transition_converged = self._converge(drop_transition, max_iters=500, verbose=False)
+                drop_transition_converged = self._converge(drop_transition)
                 removal_affect[label] = default_conversion - drop_transition_converged[0,-1]
         return removal_affect
     
     def _converged_transition_probabilities(self, transition_probabilities):
         tic = time.time()
-        converged_transition_probabilities = self._converge(transition_probabilities, max_iters=500, verbose=False)
+        converged_transition_probabilities = self._converge(transition_probabilities)
         toc = time.time()
         time_per_iter = (toc - tic)
         total_iters = transition_probabilities.shape[0]
@@ -282,7 +282,7 @@ class AttributionModelRecipe(PyNativeRecipe):
         input_df.columns = [x.lower() for x in input_df.columns]
         filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
 
-        multitouch_models = MultiTouchModels()
+        multitouch_models = MultiTouchModels(self.logger)
         
         filtered_df.columns = [x.lower() for x in input_df.columns]
         def _convert_str_to_list(x):
