@@ -6,7 +6,7 @@ from profiles_rudderstack.material import WhtMaterial
 from profiles_rudderstack.logger import Logger
 import seaborn as sns
 import matplotlib
-import scipy.linalg as linalg
+import torch
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -132,21 +132,22 @@ class MultiTouchModels:
         all_transitions = pos_transitions + neg_transitions
         transition_probabilities = row_normalize_np_array(all_transitions)
         return transition_probabilities, labels
-    
+
     def _converge(self, transition_matrix, max_iters=40, verbose=False):
-        transition_matrix = np.array(transition_matrix, dtype=np.float32)
-        T_upd = transition_matrix.copy()
-        prev_T = transition_matrix.copy()
+        transition_matrix = torch.tensor(transition_matrix, dtype=torch.float32)
+        T_upd = transition_matrix
+        prev_T = transition_matrix
+
         for i in range(max_iters):
-            T_upd = linalg.blas.dgemm(1.0, transition_matrix, prev_T)
-            if np.abs(T_upd - prev_T).max() < 1e-3:
+            T_upd = torch.matmul(transition_matrix, prev_T)
+            if torch.abs(T_upd - prev_T).max() < 1e-3:
                 if verbose:
                     self.logger.info(f"{i} iters taken for convergence")
-                return T_upd
+                return T_upd.numpy()
             prev_T = T_upd
         if verbose:
             self.logger.info(f"Max iters of {max_iters} reached before convergence. Exiting")
-        return T_upd
+        return T_upd.numpy() 
     
     def _get_removal_affects(self, transition_probs, labels, ignore_labels=["Start", "Dropoff","Converted"], default_conversion=1.):
         removal_affect = {}
