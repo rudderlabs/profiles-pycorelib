@@ -284,11 +284,13 @@ class AttributionModelRecipe(PyNativeRecipe):
             input_df[conversion_var] = True
 
         input_df.columns = [x.lower() for x in input_df.columns]
-        filtered_df = input_df.copy()
 
         if 'days_since_first_seen_var' in self.config:
             days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
             filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
+        else:
+            filtered_df = input_df.copy()
+
         filtered_df.columns = [x.lower() for x in input_df.columns]
 
         def _convert_str_to_list(x):
