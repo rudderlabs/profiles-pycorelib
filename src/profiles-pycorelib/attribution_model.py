@@ -38,7 +38,7 @@ class AttributionModel(BaseModelType):
             # **EntityIdsBuildSpecSchema["properties"],
             # **MaterializationBuildSpecSchema["properties"],
         },
-        "required": ["entity", "touchpoint_var", "days_since_first_seen_var", "first_seen_since", "conversion_entity_var"],
+        "required": ["entity", "touchpoint_var"],
         "additionalProperties": False
     }
 
@@ -212,12 +212,12 @@ class AttributionModelRecipe(PyNativeRecipe):
     def __init__(self, config: Dict) -> None:
         self.config = config
         self.logger = Logger("attribution_model") # create a logger for debug/error logging
-        self.inputs = {"touchpoints": f'entity/{self.config["entity"]}/{self.config["touchpoint_var"]}',
-                       "conversion": f'entity/{self.config["entity"]}/{self.config["conversion_entity_var"]}', 
-                       "days_since_first_seen": f'entity/{self.config["entity"]}/{self.config["days_since_first_seen_var"]}',
-                       "var_table": f'{self.config["entity"]}/all/var_table',
+        self.inputs = {
+                        "var_table": f'{self.config["entity"]}/all/var_table',
                        }
-
+        for key in ("touchpoint_var", "conversion_entity_var", "days_since_first_seen_var"):
+            if key in self.config:
+                self.inputs[key] = f'entity/{self.config["entity"]}/{self.config[key]}'
 
     # describe the compile output of the recipe - the sql code and the extension of the file
     def describe(self, this: WhtMaterial):
@@ -230,11 +230,8 @@ class AttributionModelRecipe(PyNativeRecipe):
 
     # prepare the material for execution - de_ref the inputs and create the sql code
     def register_dependencies(self, this: WhtMaterial):
-        this.de_ref(self.inputs["touchpoints"])
-        this.de_ref(self.inputs["days_since_first_seen"])
-        this.de_ref(self.inputs["conversion"])
-        this.de_ref(self.inputs["var_table"])
-    
+        for key in self.inputs:
+            this.de_ref(self.inputs[key])
     
     def _get_first_touch_scores(self, input_df: pd.DataFrame,  touchpoints_array_col: str, conversion_col:str):
         input_df = input_df.copy()
@@ -275,17 +272,25 @@ class AttributionModelRecipe(PyNativeRecipe):
 
     # execute the material
     def execute(self, this: WhtMaterial):
+        multitouch_models = MultiTouchModels(self.logger)
         touch_point_var = self.config['touchpoint_var'].lower()
-        conversion_var = self.config['conversion_entity_var'].lower()
-        days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
         enable_visualisation = self.config.get('enable_visualisation', True)
         input_df = this.de_ref(self.inputs["var_table"]).get_df()#(select_columns=[touch_point_var, conversion_var])
-        input_df.columns = [x.lower() for x in input_df.columns]
-        filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
 
-        multitouch_models = MultiTouchModels(self.logger)
-        
+        if 'conversion_entity_var' in self.config:
+            conversion_var = self.config['conversion_entity_var'].lower()
+        else:
+            conversion_var = 'is_converted'
+            input_df[conversion_var] = True
+
+        input_df.columns = [x.lower() for x in input_df.columns]
+        filtered_df = input_df.copy()
+
+        if 'days_since_first_seen_var' in self.config:
+            days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
+            filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
         filtered_df.columns = [x.lower() for x in input_df.columns]
+
         def _convert_str_to_list(x):
             try:
                 return x.split(",")
