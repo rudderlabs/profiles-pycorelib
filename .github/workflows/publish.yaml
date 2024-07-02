@@ -25,7 +25,7 @@ jobs:
       PASSWORD: ${{ secrets.PASSWORD }}
     environment:
       name: ${{ inputs.environment }}
-      url: ${{ vars.URL }}/p/profiles-pycorelib
+      url: ${{ vars.URL }}/profiles-pycorelib
     permissions:
       id-token: write
     steps:
