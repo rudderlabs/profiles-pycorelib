@@ -72,7 +72,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
                 {{% macro selector_sql() %}}
                     {union_sql}
                 {{% endmacro %}}
-                {{% exec %}} {{{{warehouse.CreateReplaceTableAs(this.Name(), selector_sql())}}}} {{% endexec %}}
+                {{% exec %}} {{{{warehouse.CreateReplaceTableAs(this, selector_sql())}}}} {{% endexec %}}
             {{% endmacro %}}
             
             {{% exec %}} {{{{warehouse.BeginEndBlock(begin_block())}}}} {{% endexec %}}"""
@@ -134,7 +134,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
                 {{% macro selector_sql() %}}
                     {union_sql}
                 {{% endmacro %}}
-                {{% exec %}} {{{{warehouse.CreateReplaceTableAs(this.Name(), selector_sql())}}}} {{% endexec %}}
+                {{% exec %}} {{{{warehouse.CreateReplaceTableAs(this, selector_sql())}}}} {{% endexec %}}
             {{% endmacro %}}
             
             {{% exec %}} {{{{warehouse.BeginEndBlock(begin_block())}}}} {{% endexec %}}"""
