@@ -151,7 +151,7 @@ class MultiTouchModels:
     def _get_removal_affects(self, transition_probs, labels, ignore_labels=["Start", "Dropoff","Converted"], default_conversion=1.):
         removal_affect = {}
         for n, label in enumerate(labels):
-            if n % (len(labels)//10) == 0:
+            if n % max((len(labels)//10), 1) == 0:
                 self.logger.info(f"Computing removal affects: {n/len(labels)*100:.2f}%")
             if label in ignore_labels:
                 continue
