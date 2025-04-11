@@ -35,7 +35,7 @@ jobs:
           gh release download ${VERSION} --repo github.com/rudderlabs/profiles-pycorelib --pattern "profiles_pycorelib_dist_${VERSION}.tar.gz" -O ./dist.tar.gz
           tar -zxvf dist.tar.gz
       - name: publish
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # release/v1
         with:
           repository-url: ${{ vars.REPOSITORY_URL }}
           user: ${{ env.USER || '__token__' }}
