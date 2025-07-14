@@ -1,2 +1,2 @@
 
-version = "0.23.0-rc.1"
+version = "v0.23.0-rc.1"
