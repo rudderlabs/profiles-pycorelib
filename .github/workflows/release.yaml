@@ -19,6 +19,11 @@ jobs:
       VERSION: ${{ inputs.whtRelease }}
       GH_TOKEN: ${{ secrets.PAT }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
