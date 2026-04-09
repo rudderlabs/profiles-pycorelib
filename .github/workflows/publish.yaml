@@ -33,7 +33,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
         with:
           egress-policy: audit
 
@@ -43,7 +43,7 @@ jobs:
           gh release download ${VERSION} --repo github.com/rudderlabs/profiles-pycorelib --pattern "profiles_pycorelib_dist_${VERSION}.tar.gz" -O ./dist.tar.gz
           tar -zxvf dist.tar.gz
       - name: publish
-        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
         with:
           repository-url: ${{ vars.REPOSITORY_URL }}
           user: ${{ env.USER || '__token__' }}
