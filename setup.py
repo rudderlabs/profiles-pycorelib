@@ -22,8 +22,8 @@ def limit_major_minor_version(version: str) -> str:
 setup(
     name='profiles-pycorelib',
     version=version,
-    author='Shubham Mehra',
-    author_email='shubhammehra@ruddersatck.com',
+    author='RudderStack',
+    author_email='profiles@rudderstack.com',
     description='A Python Native package that registers the core python models',
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
@@ -32,7 +32,7 @@ setup(
         "cexprtk>=0.4.1",
         "seaborn>=0.13.1",
         "matplotlib>=3.7.5",
-        "pandas>=2.0.3,<2.2.0",
+        "pandas>=2.0.3",
         "numpy>=1.24.4",
         "plotly>=5.22.0",
         "scipy>=1.11.0"
