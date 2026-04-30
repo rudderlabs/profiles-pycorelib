@@ -74,4 +74,13 @@ jobs:
         run: |
           git push origin ${VERSION}
           gh release create ${VERSION} $(echo $VERSION | grep -q "alpha\|beta\|rc" && echo "-p") --generate-notes profiles_pycorelib_dist_${VERSION}.tar.gz dist/*.whl
-          git push origin HEAD
+      - name: open PR to land version bump on main
+        shell: bash
+        run: |
+          BRANCH="release/${VERSION}"
+          git push origin HEAD:refs/heads/${BRANCH}
+          gh pr create \
+            --base main \
+            --head ${BRANCH} \
+            --title "chore: release ${VERSION}" \
+            --body "Automated version bump for release ${VERSION}. The tag and GitHub release have already been published; merging this PR keeps main in sync with the released version."
