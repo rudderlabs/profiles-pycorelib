@@ -83,5 +83,4 @@ jobs:
             --base main \
             --head ${BRANCH} \
             --title "chore: release ${VERSION}" \
-            --body "Automated version bump for release ${VERSION}."
-          gh pr merge ${BRANCH} --squash --auto --delete-branch
+            --body "Automated version bump for release ${VERSION}. The tag and GitHub release have already been published; merging this PR keeps main in sync with the released version."
