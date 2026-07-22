@@ -23,13 +23,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ inputs.release }}
-      GH_TOKEN: ${{ secrets.PAT }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       USER: ${{ secrets.USER }}
       PASSWORD: ${{ secrets.PASSWORD }}
     environment:
       name: ${{ inputs.environment }}
       url: ${{ vars.URL }}/profiles-pycorelib
     permissions:
+      contents: write
+      pull-requests: write
       id-token: write
     steps:
       - name: Harden the runner (Audit all outbound calls)
