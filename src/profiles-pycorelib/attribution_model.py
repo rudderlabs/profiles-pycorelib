@@ -15,9 +15,35 @@ import numpy as np
 import os
 import time
 import pathlib
+import re
 
 matplotlib.use('agg')
 MAXIMUM_TOUCHPOINTS_TO_VISUALIZE = 50
+
+# Column names supplied through the build spec are used to filter/index the input
+# dataframe. They must be bare identifiers, never expressions: pandas'
+# DataFrame.query()/eval engine resolves "@name" against this module's globals
+# (which include os, time, pathlib), so an unvalidated field would let a config
+# value run arbitrary Python in the pb runner process (RUD-3028).
+_COLUMN_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_column_name(name: str, df: pd.DataFrame) -> str:
+    """Return ``name`` only if it is a bare column identifier present in ``df``.
+
+    Raises ``ValueError`` otherwise, so a build-spec field can never be
+    interpreted as a pandas/Python expression.
+    """
+    if not isinstance(name, str) or not _COLUMN_NAME_RE.match(name):
+        raise ValueError(
+            f"Invalid column name {name!r}: expected a bare column identifier "
+            "matching [A-Za-z_][A-Za-z0-9_]*"
+        )
+    if name not in df.columns:
+        raise ValueError(
+            f"Column {name!r} not found in input columns: {list(df.columns)}"
+        )
+    return name
 
 class AttributionModel(BaseModelType):
     TypeName = "campaign_attribution_scores" # the name of the model type
@@ -195,11 +221,13 @@ class MultiTouchModels:
         return attributable_conversions
     
     def get_markov_attribution(self, input_df: pd.DataFrame, conversion_col: str, touchpoints_array_col: str, attribution_reports_folder_path: str, enable_visualisation: bool) -> pd.DataFrame:
+        conversion_col = _validate_column_name(conversion_col, input_df)
+        touchpoints_array_col = _validate_column_name(touchpoints_array_col, input_df)
         data_filtered = input_df[input_df[touchpoints_array_col].apply(lambda touches: len(touches)>0 if touches else False)]
-        positive_touchpoints_ = data_filtered.query(f"{conversion_col}>0")[[touchpoints_array_col, conversion_col]].values
+        positive_touchpoints_ = data_filtered[data_filtered[conversion_col] > 0][[touchpoints_array_col, conversion_col]].values
         positive_touches = [val[0] for val in positive_touchpoints_]
         conversion_weights = [val[1] for val in positive_touchpoints_]
-        negative_touchpoints_ = data_filtered.query(f"{conversion_col}==0")[[touchpoints_array_col]].values
+        negative_touchpoints_ = data_filtered[data_filtered[conversion_col] == 0][[touchpoints_array_col]].values
         negative_touches = [val[0] for val in negative_touchpoints_]
         distinct_touches = sorted(list(set([item for sublist in positive_touches + negative_touches for item in sublist])))
         scores = self._get_markov_scores(positive_touches, negative_touches, distinct_touches, journey_weights=conversion_weights, attribution_reports_folder_path=attribution_reports_folder_path, enable_visualisation=enable_visualisation)
@@ -288,7 +316,8 @@ class AttributionModelRecipe(PyNativeRecipe):
 
         if 'days_since_first_seen_var' in self.config:
             days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
-            filtered_df = input_df.query(f"{days_since_first_seen_var} <= {self.config['first_seen_since']}").copy()
+            column = _validate_column_name(days_since_first_seen_var, input_df)
+            filtered_df = input_df[input_df[column] <= self.config['first_seen_since']].copy()
         else:
             filtered_df = input_df.copy()
 
