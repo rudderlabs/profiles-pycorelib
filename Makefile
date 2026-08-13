@@ -34,3 +34,11 @@ release: check_git update_version
 .PHONY: install
 install:
 	SKIP_PB_BIN=true pip3 install .
+
+.PHONY: test-deps
+test-deps:
+	pip3 install -r tests/requirements.txt
+
+.PHONY: test
+test:
+	pytest tests/

@@ -1,0 +1,10 @@
+# Test-only dependencies. The models import profiles_rudderstack at module
+# scope; the tests stub it (see conftest.py) because it needs the pb runtime,
+# so only the scientific stack + pytest are required to run the suite.
+pandas>=2.0.3
+numpy>=1.24.4
+scipy>=1.11.0
+matplotlib>=3.7.5
+seaborn>=0.13.1
+plotly>=5.22.0
+pytest>=7.0
