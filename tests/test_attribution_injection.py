@@ -92,10 +92,13 @@ def test_markov_conversion_col_injection_is_rejected(attribution_model, tmp_path
 
 
 def test_validate_column_name_accepts_identifiers_and_rejects_expressions(attribution_model):
-    df = _input_df()
     validate = attribution_model._validate_column_name
+    # Non-ASCII identifiers were resolvable by the old df.query() path, so they
+    # must keep being accepted (str.isidentifier() allows them).
+    df = pd.DataFrame({"days_since_first_seen": [1], "días_desde_alta": [2]})
 
     assert validate("days_since_first_seen", df) == "days_since_first_seen"
+    assert validate("días_desde_alta", df) == "días_desde_alta"
 
     for bad in [
         'days_since_first_seen+@os.system("id")',
@@ -103,11 +106,23 @@ def test_validate_column_name_accepts_identifiers_and_rejects_expressions(attrib
         "a; b",
         "col name",
         "days_since_first_seen ",
+        "days_since_first_seen\n",  # the old $-anchored regex accepted a trailing newline
         "1col",
         "nonexistent_column",
     ]:
         with pytest.raises(ValueError):
             validate(bad, df)
+
+
+def test_validate_column_name_rejects_duplicate_columns(attribution_model):
+    validate = attribution_model._validate_column_name
+    # After the blanket .lower(), colliding labels make df[name] a DataFrame,
+    # which would silently mis-filter; reject it instead.
+    df = pd.DataFrame([[1, 2, 3]], columns=["converted", "converted", "tp"])
+
+    with pytest.raises(ValueError):
+        validate("converted", df)
+    assert validate("tp", df) == "tp"
 
 
 def test_valid_config_filters_by_days_and_completes(attribution_model, tmp_path):
@@ -140,3 +155,34 @@ def test_valid_config_filters_by_days_and_completes(attribution_model, tmp_path)
     assert "email" in touchpoints
     # rows with days_since_first_seen > 10 (the "social" touchpoints) are filtered out
     assert "social" not in touchpoints
+
+
+def test_valid_config_accepts_string_first_seen_since(attribution_model, tmp_path):
+    # The schema types first_seen_since as integer, but if it arrives as a string
+    # the comparison must not crash with TypeError (int64 Series vs str).
+    captured = {}
+
+    class _CapturingMaterial(_FakeMaterial):
+        def write_output(self, df):
+            captured["output"] = df
+
+    df = pd.DataFrame(
+        {
+            "days_since_first_seen": [1, 5, 8, 40, 60],
+            "campaign": ["email", "ads", "email,ads", "social", "social,email"],
+            "converted": [1, 0, 1, 1, 0],
+        }
+    )
+    config = {
+        "entity": "user",
+        "touchpoint_var": "campaign",
+        "conversion_entity_var": "converted",
+        "days_since_first_seen_var": "days_since_first_seen",
+        "first_seen_since": "10",  # string, not int
+        "enable_visualisation": False,
+    }
+    recipe = attribution_model.AttributionModelRecipe(config)
+
+    recipe.execute(_CapturingMaterial(df, tmp_path))  # must not raise TypeError
+
+    assert "social" not in set(captured["output"]["campaign"])
