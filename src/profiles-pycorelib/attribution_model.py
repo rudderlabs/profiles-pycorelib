@@ -15,7 +15,6 @@ import numpy as np
 import os
 import time
 import pathlib
-import re
 
 matplotlib.use('agg')
 MAXIMUM_TOUCHPOINTS_TO_VISUALIZE = 50
@@ -25,23 +24,30 @@ MAXIMUM_TOUCHPOINTS_TO_VISUALIZE = 50
 # DataFrame.query()/eval engine resolves "@name" against this module's globals
 # (which include os, time, pathlib), so an unvalidated field would let a config
 # value run arbitrary Python in the pb runner process (RUD-3028).
-_COLUMN_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
 def _validate_column_name(name: str, df: pd.DataFrame) -> str:
-    """Return ``name`` only if it is a bare column identifier present in ``df``.
+    """Return ``name`` only if it is a bare column identifier present exactly
+    once in ``df``.
 
-    Raises ``ValueError`` otherwise, so a build-spec field can never be
-    interpreted as a pandas/Python expression.
+    ``str.isidentifier()`` accepts exactly the bare-identifier set the old
+    ``df.query()`` path resolved (including non-ASCII identifiers) and rejects
+    anything containing an operator, attribute access, whitespace or a trailing
+    newline - so a build-spec field can never be interpreted as a pandas/Python
+    expression. A duplicate match is rejected as well: after the blanket column
+    lower-casing two labels can collide, and ``df[name]`` on a repeated label is
+    a DataFrame rather than a Series, which silently mis-filters.
     """
-    if not isinstance(name, str) or not _COLUMN_NAME_RE.match(name):
+    if not isinstance(name, str) or not name.isidentifier():
         raise ValueError(
-            f"Invalid column name {name!r}: expected a bare column identifier "
-            "matching [A-Za-z_][A-Za-z0-9_]*"
+            f"Invalid column name {name!r}: expected a bare column identifier"
         )
-    if name not in df.columns:
+    matches = int((df.columns == name).sum())
+    if matches == 0:
         raise ValueError(
             f"Column {name!r} not found in input columns: {list(df.columns)}"
+        )
+    if matches > 1:
+        raise ValueError(
+            f"Column {name!r} is ambiguous: appears {matches} times in input columns"
         )
     return name
 
@@ -315,13 +321,12 @@ class AttributionModelRecipe(PyNativeRecipe):
         input_df.columns = [x.lower() for x in input_df.columns]
 
         if 'days_since_first_seen_var' in self.config:
-            days_since_first_seen_var = self.config['days_since_first_seen_var'].lower()
-            column = _validate_column_name(days_since_first_seen_var, input_df)
-            filtered_df = input_df[input_df[column] <= self.config['first_seen_since']].copy()
+            days_since_first_seen_var = _validate_column_name(
+                self.config['days_since_first_seen_var'].lower(), input_df)
+            first_seen_since = int(self.config['first_seen_since'])
+            filtered_df = input_df[input_df[days_since_first_seen_var] <= first_seen_since].copy()
         else:
             filtered_df = input_df.copy()
-
-        filtered_df.columns = [x.lower() for x in input_df.columns]
 
         def _convert_str_to_list(x):
             try:
