@@ -4,6 +4,11 @@ from profiles_rudderstack.material import WhtMaterial
 from profiles_rudderstack.logger import Logger
 from typing import List
 
+try:  # production: imported inside the profiles-pycorelib package
+    from .validation import validate_model_ref, validate_sql_identifier
+except ImportError:  # unit tests load modules flat (see tests/conftest.py)
+    from validation import validate_model_ref, validate_sql_identifier
+
 class CommonColumnUnionModel(BaseModelType):
     TypeName = "common_column_union"
     BuildSpecSchema = {
@@ -52,7 +57,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
             if in_material is None:
                 continue # disabled
 
-            inputs.append(in_model)
+            inputs.append(validate_model_ref(in_model))
 
         union_sql = ""
         union_queries = []
@@ -93,7 +98,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
             if in_material is None:
                 continue # disabled
 
-            inputs.append(in_model)
+            inputs.append(validate_model_ref(in_model))
             columns = in_material.get_columns()
             for col in columns:
                 key = (col["name"], col["type"])
@@ -102,7 +107,7 @@ class CommonColumnUnionRecipe(PyNativeRecipe):
                 else:
                     common_columns_count[key] = 1
         
-        common_columns = [name for (name, _), count in common_columns_count.items() if count == len(inputs)]
+        common_columns = [validate_sql_identifier(name) for (name, _), count in common_columns_count.items() if count == len(inputs)]
         union_sql = ""
         
         if len(common_columns) > 0:

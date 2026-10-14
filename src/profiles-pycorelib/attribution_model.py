@@ -16,6 +16,11 @@ import os
 import time
 import pathlib
 
+try:  # production: imported inside the profiles-pycorelib package
+    from .validation import validate_model_ref, validate_sql_identifier
+except ImportError:  # unit tests load modules flat (see tests/conftest.py)
+    from validation import validate_model_ref, validate_sql_identifier
+
 matplotlib.use('agg')
 MAXIMUM_TOUCHPOINTS_TO_VISUALIZE = 50
 
@@ -36,10 +41,7 @@ def _validate_column_name(name: str, df: pd.DataFrame) -> str:
     lower-casing two labels can collide, and ``df[name]`` on a repeated label is
     a DataFrame rather than a Series, which silently mis-filters.
     """
-    if not isinstance(name, str) or not name.isidentifier():
-        raise ValueError(
-            f"Invalid column name {name!r}: expected a bare column identifier"
-        )
+    name = validate_sql_identifier(name)
     matches = int((df.columns == name).sum())
     if matches == 0:
         raise ValueError(

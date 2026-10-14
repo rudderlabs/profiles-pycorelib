@@ -42,7 +42,7 @@ def _install_profiles_rudderstack_stubs() -> None:
         "EntityIdsBuildSpecSchema",
         "MaterializationBuildSpecSchema",
     ):
-        setattr(schema, name, {"properties": {}})
+        setattr(schema, name, {"properties": {}, "required": []})
     sys.modules["profiles_rudderstack.schema"] = schema
 
     recipe = types.ModuleType("profiles_rudderstack.recipe")
@@ -89,6 +89,8 @@ def _install_profiles_rudderstack_stubs() -> None:
 def _load_model_module(module_name: str):
     _install_profiles_rudderstack_stubs()
     path = _MODELS_DIR / f"{module_name}.py"
+    if str(_MODELS_DIR) not in sys.path:
+        sys.path.insert(0, str(_MODELS_DIR))
     spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
@@ -100,3 +102,13 @@ def _load_model_module(module_name: str):
 def attribution_model():
     """The real ``attribution_model`` module, loaded from source."""
     return _load_model_module("attribution_model")
+
+
+@pytest.fixture(scope="session")
+def common_col_union():
+    return _load_model_module("common_col_union")
+
+
+@pytest.fixture(scope="session")
+def sample_model():
+    return _load_model_module("sample_model")
