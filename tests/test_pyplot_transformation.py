@@ -1,5 +1,6 @@
 """Tests for the x/y transformation step of the pyplot model."""
 import decimal
+import traceback
 import warnings
 from types import SimpleNamespace
 
@@ -108,10 +109,85 @@ def test_invalid_expression_raises(pyplot, tmp_path, monkeypatch, axis):
     assert exc.value.__cause__ is not None
 
 
-def test_non_numeric_with_transformation_keeps_cause_without_values(pyplot, tmp_path, monkeypatch):
-    value = "jane@example.com"
+def _failure(pyplot, tmp_path, monkeypatch, axis, frame, expr="{v}/2"):
+    """Run a transformation that must fail; return the error and its full formatted traceback."""
+    other = _ints(1)
+    frames = (frame, other) if axis == "x" else (other, frame)
     with pytest.raises(pyplot.InvalidTransformationError) as exc:
-        _run(pyplot, tmp_path, pd.DataFrame({"v": [value]}), _ints(1), x_expr="x/2", monkeypatch=monkeypatch)
-    assert isinstance(exc.value.__cause__, ValueError)
-    assert value not in str(exc.value)
-    assert type(exc.value.__cause__).__name__ in str(exc.value)
+        _run(pyplot, tmp_path, *frames, monkeypatch=monkeypatch, **{f"{axis}_expr": expr.format(v=axis)})
+    return exc.value, "".join(traceback.format_exception(exc.value))
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_text_column_error_has_no_cell_value_anywhere_in_traceback(pyplot, tmp_path, monkeypatch, axis):
+    value = "jane@example.com"
+    error, formatted = _failure(pyplot, tmp_path, monkeypatch, axis, pd.DataFrame({"v": [value]}))
+    assert value not in str(error)
+    assert value not in formatted
+    assert error.__cause__ is None and error.__suppress_context__
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_zip_code_text_column_still_fails(pyplot, tmp_path, monkeypatch, axis):
+    frame = pd.DataFrame({"v": ["02139", "10001"]})
+    error, formatted = _failure(pyplot, tmp_path, monkeypatch, axis, frame, expr="{v}*1")
+    assert "02139" not in formatted and "10001" not in formatted
+    assert f"{axis.upper()}-axis column 'v' (" in str(error)
+    assert str(frame["v"].dtype) in str(error)
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_non_numeric_column_is_not_reported_as_invalid_expression(pyplot, tmp_path, monkeypatch, axis):
+    error, _ = _failure(pyplot, tmp_path, monkeypatch, axis, pd.DataFrame({"v": ["a"]}))
+    assert "cannot be converted to numbers" in str(error)
+    assert "invalid transformation-expression" not in str(error)
+
+
+def test_invalid_expression_is_not_reported_as_a_column_problem(pyplot, tmp_path, monkeypatch):
+    error, _ = _failure(pyplot, tmp_path, monkeypatch, "x", _ints(1), expr="x +* (")
+    assert "invalid transformation-expression" in str(error)
+    assert "cannot be converted" not in str(error)
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_expression_failure_keeps_cause_without_cell_values(pyplot, tmp_path, monkeypatch, axis):
+    # Undefined symbol: the cause (cexprtk ParseException) stays and holds no data.
+    error, formatted = _failure(pyplot, tmp_path, monkeypatch, axis, pd.DataFrame({"v": [123456.789]}), expr="q+1")
+    assert error.__cause__ is not None
+    assert "123456.789" not in formatted
+
+
+@pytest.mark.parametrize("values", [
+    ["a", 1],
+    [pd.Timestamp("2024-01-01")],
+    [{"k": 1}],
+])
+def test_mixed_and_non_number_object_columns_fail(pyplot, tmp_path, monkeypatch, values):
+    error, _ = _failure(pyplot, tmp_path, monkeypatch, "x", pd.DataFrame({"v": pd.Series(values, dtype=object)}))
+    assert "cannot be converted to numbers" in str(error)
+
+
+def test_object_column_of_decimals_with_null(pyplot, tmp_path, monkeypatch):
+    df = pd.DataFrame({"v": pd.Series([decimal.Decimal("1.5"), None, decimal.Decimal("3")], dtype=object)})
+    p = _run(pyplot, tmp_path, df, df, x_expr="x*2", monkeypatch=monkeypatch)
+    assert p["x"].iloc[0] == 3.0 and pd.isna(p["x"].iloc[1]) and p["x"].iloc[2] == 6.0
+
+
+def test_bool_column(pyplot, tmp_path, monkeypatch):
+    df = pd.DataFrame({"v": [True, False, True]})
+    p = _run(pyplot, tmp_path, df, df, x_expr="x+0.5", monkeypatch=monkeypatch)
+    assert p["x"].tolist() == [1.5, 0.5, 1.5]
+
+
+def test_nullable_int_missing_value_stays_missing(pyplot, tmp_path, monkeypatch):
+    df = pd.DataFrame({"v": pd.Series([2, None, 4], dtype="Int64")})
+    p = _run(pyplot, tmp_path, df, df, y_expr="y/4", monkeypatch=monkeypatch)
+    assert p["y"].iloc[0] == 0.5 and pd.isna(p["y"].iloc[1]) and p["y"].iloc[2] == 1.0
+
+
+@pytest.mark.parametrize("arrow_type", ["int64", "double"])
+def test_arrow_backed_numeric_column(pyplot, tmp_path, monkeypatch, arrow_type):
+    pytest.importorskip("pyarrow")
+    df = pd.DataFrame({"v": pd.Series([1, None, 3], dtype=f"{arrow_type}[pyarrow]")})
+    p = _run(pyplot, tmp_path, df, df, x_expr="x/2", monkeypatch=monkeypatch)
+    assert p["x"].iloc[0] == 0.5 and pd.isna(p["x"].iloc[1]) and p["x"].iloc[2] == 1.5

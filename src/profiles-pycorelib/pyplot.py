@@ -8,6 +8,8 @@ from profiles_rudderstack.logger import Logger
 from profiles_rudderstack.schema import MaterializationBuildSpecSchema
 from typing import List
 import pandas as pd
+import decimal
+import numbers
 import os
 import re
 import matplotlib
@@ -40,6 +42,34 @@ def output_file_name(material_name: str, extension: str) -> str:
     if material_name.lower().endswith(suffix.lower()):
         return material_name
     return material_name + suffix
+
+
+def holds_numbers(column: pd.Series) -> bool:
+    """True if the column is numeric or bool, or an object column whose non-null values are all numbers."""
+    if pd.api.types.is_numeric_dtype(column.dtype):
+        return True
+    if column.dtype != object:
+        return False
+    return all(isinstance(v, (numbers.Real, decimal.Decimal)) for v in column.dropna())
+
+
+def cast_to_float(df: pd.DataFrame, column_name: str, axis_name: str) -> None:
+    """Turn a column into float64 so that a transformation can write fractional results into it.
+
+    The error names the column and its dtype but never a cell value: pb reports the traceback in
+    customer-visible logs, and the original conversion error quotes the value that failed.
+    """
+    column = df[column_name]
+    if holds_numbers(column):
+        try:
+            df[column_name] = column.astype("float64")
+            return
+        except (TypeError, ValueError):
+            pass
+    raise InvalidTransformationError(
+        f"{axis_name}-axis column '{column_name}' ({column.dtype}) cannot be converted to numbers"
+    ) from None
+
 
 class PyPlotModel(BaseModelType):
     TypeName = "pyplot"
@@ -149,29 +179,31 @@ class PyPlotRecipe(PyNativeRecipe):
         df_y = pd.concat(y_axis_dfs, ignore_index=True)
 
         if self.x_axis.get("transformation", False):
+            # Integer columns cannot hold fractional results (TypeError on pandas 3).
+            cast_to_float(df_x, self.x_axis.get("column"), "X")
             try:
                 cexprtk.check_expression(self.x_axis.get("transformation"))
-                # Integer columns cannot hold fractional results (TypeError on pandas 3).
-                df_x[self.x_axis.get("column")] = df_x[self.x_axis.get("column")].astype("float64")
                 for i in range(len(df_x[self.x_axis.get("column")])):
                     df_x.at[i, self.x_axis.get("column")] = cexprtk.evaluate_expression(
                         self.x_axis.get("transformation"), {"x": df_x.at[i, self.x_axis.get("column")]})
             except Exception as e:
-                # Only the error type goes in the message: the original text can contain column values.
+                # cexprtk errors hold the expression, symbol names and a type name, never a cell value,
+                # so the cause stays in the traceback.
                 raise InvalidTransformationError(
                     f"Transformation of X-axis values cannot be done as invalid transformation-expression"
                     f" ({type(e).__name__})") from e
 
         if self.y_axis.get("transformation", False):
+            # Integer columns cannot hold fractional results (TypeError on pandas 3).
+            cast_to_float(df_y, self.y_axis.get("column"), "Y")
             try:
                 cexprtk.check_expression(self.y_axis.get("transformation"))
-                # Integer columns cannot hold fractional results (TypeError on pandas 3).
-                df_y[self.y_axis.get("column")] = df_y[self.y_axis.get("column")].astype("float64")
                 for i in range(len(df_y[self.y_axis.get("column")])):
                     df_y.at[i, self.y_axis.get("column")] = cexprtk.evaluate_expression(
                         self.y_axis.get("transformation"), {"y": df_y.at[i, self.y_axis.get("column")]})
             except Exception as e:
-                # Only the error type goes in the message: the original text can contain column values.
+                # cexprtk errors hold the expression, symbol names and a type name, never a cell value,
+                # so the cause stays in the traceback.
                 raise InvalidTransformationError(
                     f"Transformation of Y-axis values cannot be done as invalid transformation-expression"
                     f" ({type(e).__name__})") from e
