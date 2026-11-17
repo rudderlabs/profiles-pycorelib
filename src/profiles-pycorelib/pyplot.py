@@ -116,22 +116,30 @@ class PyPlotRecipe(PyNativeRecipe):
         if self.x_axis.get("transformation", False):
             try:
                 cexprtk.check_expression(self.x_axis.get("transformation"))
+                # Integer columns cannot hold fractional results (TypeError on pandas 3).
+                df_x[self.x_axis.get("column")] = df_x[self.x_axis.get("column")].astype("float64")
                 for i in range(len(df_x[self.x_axis.get("column")])):
                     df_x.at[i, self.x_axis.get("column")] = cexprtk.evaluate_expression(
                         self.x_axis.get("transformation"), {"x": df_x.at[i, self.x_axis.get("column")]})
-            except:
+            except Exception as e:
+                # Only the error type goes in the message: the original text can contain column values.
                 raise InvalidTransformationError(
-                    "Transformation of X-axis values cannot be done as invalid transformation-expression")
+                    f"Transformation of X-axis values cannot be done as invalid transformation-expression"
+                    f" ({type(e).__name__})") from e
 
         if self.y_axis.get("transformation", False):
             try:
                 cexprtk.check_expression(self.y_axis.get("transformation"))
+                # Integer columns cannot hold fractional results (TypeError on pandas 3).
+                df_y[self.y_axis.get("column")] = df_y[self.y_axis.get("column")].astype("float64")
                 for i in range(len(df_y[self.y_axis.get("column")])):
                     df_y.at[i, self.y_axis.get("column")] = cexprtk.evaluate_expression(
                         self.y_axis.get("transformation"), {"y": df_y.at[i, self.y_axis.get("column")]})
-            except:
+            except Exception as e:
+                # Only the error type goes in the message: the original text can contain column values.
                 raise InvalidTransformationError(
-                    "Transformation of Y-axis values cannot be done as invalid transformation-expression")
+                    f"Transformation of Y-axis values cannot be done as invalid transformation-expression"
+                    f" ({type(e).__name__})") from e
 
         os.makedirs(output_folder, exist_ok=True)
 
