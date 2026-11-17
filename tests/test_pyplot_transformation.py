@@ -1,31 +1,10 @@
 """Tests for the x/y transformation step of the pyplot model."""
 import decimal
-import importlib.util
-import sys
 import warnings
 from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-
-
-@pytest.fixture(scope="module")
-def pyplot(sample_model):  # sample_model fixture installs the profiles_rudderstack stubs
-    pkg_dir = sys.modules["sample_model"].__file__.rsplit("/", 1)[0]
-    name = "pycore_pkg"
-    if name not in sys.modules:
-        spec = importlib.util.spec_from_file_location(
-            name, pkg_dir + "/errors.py")
-        # pyplot uses a relative import of .errors, so load it inside a package.
-        pkg = importlib.util.module_from_spec(spec)
-        pkg.__path__ = [pkg_dir]
-        sys.modules[name] = pkg
-    spec = importlib.util.spec_from_file_location(
-        name + ".pyplot", pkg_dir + "/pyplot.py")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name + ".pyplot"] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 class _Material:

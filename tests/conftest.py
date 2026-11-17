@@ -112,3 +112,22 @@ def common_col_union():
 @pytest.fixture(scope="session")
 def sample_model():
     return _load_model_module("sample_model")
+
+
+@pytest.fixture(scope="module")
+def pyplot(sample_model):  # sample_model fixture installs the profiles_rudderstack stubs
+    pkg_dir = sys.modules["sample_model"].__file__.rsplit("/", 1)[0]
+    name = "pycore_pkg"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            name, pkg_dir + "/errors.py")
+        # pyplot uses a relative import of .errors, so load it inside a package.
+        pkg = importlib.util.module_from_spec(spec)
+        pkg.__path__ = [pkg_dir]
+        sys.modules[name] = pkg
+    spec = importlib.util.spec_from_file_location(
+        name + ".pyplot", pkg_dir + "/pyplot.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name + ".pyplot"] = module
+    spec.loader.exec_module(module)
+    return module
